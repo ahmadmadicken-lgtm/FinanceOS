@@ -1,4 +1,4 @@
-<!-- Finance OS v3.8 Import Module build:20260629071140 -->
+<!-- Finance OS v3.9 Supabase Sync build:20260629223736 -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1961,7 +1961,17 @@ const DB = (() => {
     try { return JSON.parse(localStorage.getItem(key)) || []; }
     catch { return []; }
   }
-  function _set(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
+  function _set(key, data) {
+    localStorage.setItem(key, JSON.stringify(data));
+    // Sync to Supabase if available - only for transaction/financial data, not master
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.queueSync) {
+      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_payables','fos_payments','fos_treasury'];
+      if (syncKeys.includes(key)) {
+        // Queue the whole array - handled by pushAll inside sync queue processor
+        SupabaseSync.queueBulkSync(key);
+      }
+    }
+  }
   function _del(key, filterFn) {
     const list = _get(key);
     _set(key, list.filter(filterFn));
@@ -2691,6 +2701,313 @@ const Utils = (() => {
     newEntityId, newBUId, newActivityId, newCpId, newAccountId,
     required, positiveNumber, validateTxn,
     el, statusBadge, directionBadge, emptyState, toast, confirm, exportCSV, last12Periods
+  };
+
+})();
+
+// ============================================================
+// FINANCE OS — Supabase Sync
+// Real-time sync antara localStorage dan Supabase
+// Strategy: localStorage sebagai primary (fast), 
+//           Supabase sebagai backup & sync (cloud)
+// ============================================================
+
+const SupabaseSync = (() => {
+
+  const SUPABASE_URL = 'https://ewbzxrgkbcahmwmljlfn.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Ynp4cmdrYmNhaG13bWxqbGZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NTUyODksImV4cCI6MjA5ODMzMTI4OX0.Tn-ajLwGJFU3pdsILPVc1nvqdGZyzF2RdZ0qkguOMm0';
+
+  const HEADERS = {
+    'Content-Type':  'application/json',
+    'apikey':        SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Prefer':        'resolution=merge-duplicates'
+  };
+
+  // localStorage keys → Supabase table mapping
+  const TABLE_MAP = {
+    'fos_transactions': { table: 'fos_transactions', idKey: 'txn_id' },
+    'fos_receivables':  { table: 'fos_receivables',  idKey: 'rcv_id' },
+    'fos_collections':  { table: 'fos_collections',  idKey: 'col_id' },
+    'fos_payables':     { table: 'fos_payables',     idKey: 'pay_id' },
+    'fos_payments':     { table: 'fos_payments',     idKey: 'pmt_id' },
+    'fos_treasury':     { table: 'fos_treasury',     idKey: 'try_id' },
+  };
+
+  // Master data keys stored as single JSON blob in fos_settings
+  const SETTINGS_KEYS = [
+    'fos_entities', 'fos_bus', 'fos_activities', 'fos_coa',
+    'fos_accounts', 'fos_counterparties', 'fos_txn_types',
+    'fos_settings', 'fos_seed_loaded'
+  ];
+
+  var _initialized = false;
+  var _online      = navigator.onLine;
+  var _syncQueue   = [];
+  var _syncing     = false;
+
+  // ── Init ────────────────────────────────────────────────────
+  async function init() {
+    window.addEventListener('online',  function() { _online = true;  _processSyncQueue(); });
+    window.addEventListener('offline', function() { _online = false; _showOfflineIndicator(); });
+
+    // Try to pull from Supabase on startup
+    try {
+      await pullFromSupabase();
+      _initialized = true;
+      _showSyncStatus('synced');
+      console.log('[SupabaseSync] Init complete');
+    } catch(e) {
+      console.warn('[SupabaseSync] Init failed, using local data:', e.message);
+      _showSyncStatus('offline');
+    }
+  }
+
+  // ── API Helper ──────────────────────────────────────────────
+  async function _api(method, table, body) {
+    var url = SUPABASE_URL + '/rest/v1/' + table;
+    var opts = { method: method, headers: HEADERS };
+    if (body) opts.body = JSON.stringify(body);
+    var res = await fetch(url, opts);
+    if (!res.ok) {
+      var err = await res.text();
+      throw new Error('Supabase ' + method + ' ' + table + ': ' + err);
+    }
+    var text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  // ── Push single record ──────────────────────────────────────
+  async function pushRecord(lsKey, record) {
+    var map = TABLE_MAP[lsKey];
+    if (!map) return;
+
+    var idKey = map.idKey;
+    var id    = record[idKey];
+    if (!id) return;
+
+    await _api('POST', map.table + '?on_conflict=' + idKey, [{
+      [idKey]:     id,
+      data:        record,
+      updated_at:  new Date().toISOString()
+    }]);
+  }
+
+  // ── Push all records from a localStorage key ────────────────
+  async function pushAll(lsKey) {
+    var map = TABLE_MAP[lsKey];
+    if (!map) return;
+
+    var raw     = localStorage.getItem(lsKey);
+    if (!raw) return;
+    var records = JSON.parse(raw);
+    if (!Array.isArray(records) || records.length === 0) return;
+
+    var idKey = map.idKey;
+    var rows  = records.map(function(r) {
+      return { [idKey]: r[idKey], data: r, updated_at: new Date().toISOString() };
+    });
+
+    // Batch upsert in chunks of 100
+    for (var i = 0; i < rows.length; i += 100) {
+      var chunk = rows.slice(i, i + 100);
+      await _api('POST', map.table + '?on_conflict=' + idKey, chunk);
+    }
+  }
+
+  // ── Push master data to fos_settings ───────────────────────
+  async function pushSettings() {
+    var rows = SETTINGS_KEYS.map(function(key) {
+      var val = localStorage.getItem(key);
+      return {
+        key:        key,
+        data:       val ? JSON.parse(val) : null,
+        updated_at: new Date().toISOString()
+      };
+    }).filter(function(r) { return r.data !== null; });
+
+    if (rows.length === 0) return;
+    await _api('POST', 'fos_settings?on_conflict=key', rows);
+  }
+
+  // ── Pull all data from Supabase → localStorage ──────────────
+  async function pullFromSupabase() {
+    // Pull transaction tables
+    for (var lsKey in TABLE_MAP) {
+      var map  = TABLE_MAP[lsKey];
+      var rows = await _api('GET', map.table + '?select=data&order=updated_at.asc', null);
+      if (rows && rows.length > 0) {
+        var records = rows.map(function(r) { return r.data; });
+        localStorage.setItem(lsKey, JSON.stringify(records));
+      }
+    }
+
+    // Pull settings
+    var settings = await _api('GET', 'fos_settings?select=key,data', null);
+    if (settings && settings.length > 0) {
+      settings.forEach(function(s) {
+        if (s.data !== null) {
+          localStorage.setItem(s.key, JSON.stringify(s.data));
+        }
+      });
+    }
+  }
+
+  // ── Push ALL local data to Supabase ─────────────────────────
+  async function pushAllToSupabase() {
+    _showSyncStatus('syncing');
+    try {
+      for (var lsKey in TABLE_MAP) {
+        await pushAll(lsKey);
+      }
+      await pushSettings();
+      _showSyncStatus('synced');
+      Utils.toast('Sync ke Supabase berhasil');
+    } catch(e) {
+      _showSyncStatus('error');
+      Utils.toast('Sync gagal: ' + e.message, 'error');
+      console.error('[SupabaseSync] Push failed:', e);
+    }
+  }
+
+  // ── Queue a sync operation (debounced) ──────────────────────
+  var _debounceTimer = null;
+  function queueSync(lsKey, record) {
+    _syncQueue.push({ lsKey, record });
+
+    clearTimeout(_debounceTimer);
+    _debounceTimer = setTimeout(function() {
+      _processSyncQueue();
+    }, 1500); // wait 1.5s after last change before syncing
+  }
+
+  async function _processSyncQueue() {
+    if (!_online || _syncing || _syncQueue.length === 0) return;
+    _syncing = true;
+    _showSyncStatus('syncing');
+
+    var batch = _syncQueue.splice(0);
+    try {
+      for (var i = 0; i < batch.length; i++) {
+        await pushRecord(batch[i].lsKey, batch[i].record);
+      }
+      // Also sync settings on any change
+      await pushSettings();
+      _showSyncStatus('synced');
+    } catch(e) {
+      console.error('[SupabaseSync] Queue sync failed:', e);
+      _showSyncStatus('error');
+      // Re-queue failed items
+      _syncQueue.unshift.apply(_syncQueue, batch);
+    }
+    _syncing = false;
+  }
+
+  // ── UI: Sync status indicator ────────────────────────────────
+  function _showSyncStatus(status) {
+    var el = document.getElementById('sync-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sync-status';
+      el.style.cssText = 'position:fixed;bottom:1rem;right:1rem;z-index:9000;' +
+        'font-size:.7rem;padding:.3rem .7rem;border-radius:12px;font-weight:600;' +
+        'transition:all .3s;pointer-events:none';
+      document.body.appendChild(el);
+    }
+
+    var states = {
+      synced:  { text: '● Synced',   bg: 'var(--green)',  color: '#fff' },
+      syncing: { text: '↻ Syncing…', bg: 'var(--blue)',   color: '#fff' },
+      offline: { text: '● Offline',  bg: 'var(--yellow)', color: '#000' },
+      error:   { text: '● Sync Error',bg: 'var(--red)',   color: '#fff' }
+    };
+
+    var s = states[status] || states.offline;
+    el.textContent = s.text;
+    el.style.background = s.bg;
+    el.style.color = s.color;
+
+    // Auto-hide synced status after 3s
+    if (status === 'synced') {
+      setTimeout(function() {
+        if (el) el.style.opacity = '0';
+        setTimeout(function() { if (el) el.style.opacity = '1'; }, 5000);
+      }, 3000);
+    } else {
+      el.style.opacity = '1';
+    }
+  }
+
+  function _showOfflineIndicator() {
+    _showSyncStatus('offline');
+    var toast = document.createElement('div');
+    toast.className = 'offline-toast';
+    toast.textContent = '📵 Offline — data tetap tersimpan lokal';
+    toast.style.display = 'block';
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 4000);
+  }
+
+  // ── Public: Manual sync trigger ─────────────────────────────
+  async function manualSync() {
+    if (!_online) {
+      Utils.toast('Tidak ada koneksi internet', 'error');
+      return;
+    }
+    await pushAllToSupabase();
+  }
+
+  async function manualPull() {
+    if (!_online) {
+      Utils.toast('Tidak ada koneksi internet', 'error');
+      return;
+    }
+    _showSyncStatus('syncing');
+    try {
+      await pullFromSupabase();
+      _showSyncStatus('synced');
+      Utils.toast('Data berhasil ditarik dari Supabase — refresh halaman');
+      setTimeout(function() { window.location.reload(); }, 1500);
+    } catch(e) {
+      _showSyncStatus('error');
+      Utils.toast('Pull gagal: ' + e.message, 'error');
+    }
+  }
+
+  // ── Queue bulk sync for entire localStorage key ────────────
+  var _bulkQueue = new Set();
+  var _bulkTimer = null;
+
+  function queueBulkSync(lsKey) {
+    _bulkQueue.add(lsKey);
+    clearTimeout(_bulkTimer);
+    _bulkTimer = setTimeout(async function() {
+      if (!_online) return;
+      _showSyncStatus('syncing');
+      try {
+        for (var key of _bulkQueue) {
+          await pushAll(key);
+        }
+        await pushSettings();
+        _bulkQueue.clear();
+        _showSyncStatus('synced');
+      } catch(e) {
+        console.error('[SupabaseSync] Bulk sync failed:', e);
+        _showSyncStatus('error');
+      }
+    }, 2000);
+  }
+
+  return {
+    init,
+    queueSync,
+    queueBulkSync,
+    pushRecord,
+    pushAll,
+    pushAllToSupabase,
+    pullFromSupabase,
+    manualSync,
+    manualPull
   };
 
 })();
@@ -9008,6 +9325,15 @@ const SettingsModule = (() => {
             <button class="btn btn-ghost" onclick="SettingsModule.importData()">Import JSON</button>
           </div>
           <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">☁ Supabase Sync</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
+            Data disimpan di Supabase untuk sync antar device. Push mengirim data lokal ke cloud. Pull mengambil data terbaru dari cloud.
+          </p>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap">
+            <button class="btn btn-secondary" onclick="SupabaseSync.manualSync()">&#8679; Push ke Supabase</button>
+            <button class="btn btn-ghost" onclick="SupabaseSync.manualPull()">&#8681; Pull dari Supabase</button>
+          </div>
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
           <h4 style="margin-bottom:.5rem;color:var(--text-muted)">Migrasi Data</h4>
           <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
             Jika ada TXN ID lama yang menggunakan tanggal input (bukan tanggal transaksi), gunakan tombol ini untuk memperbaikinya.
@@ -9316,10 +9642,6 @@ window.addEventListener("DOMContentLoaded", function() {
         navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});
       });
     }
-    var _deferredInstall = null;
-    window.addEventListener('beforeinstallprompt', function(e) {
-      e.preventDefault(); _deferredInstall = e;
-    });
   </script>
 </body>
 </html>
