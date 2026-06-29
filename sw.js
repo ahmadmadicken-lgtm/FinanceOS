@@ -1,15 +1,18 @@
 // ============================================================
 // FINANCE OS — Service Worker
-// Cache-first strategy for offline capability
+// Fixed for GitHub Pages subdirectory /FinanceOS/
 // ============================================================
 
-const CACHE_NAME = 'finance-os-v3.7';
+const CACHE_NAME = 'finance-os-v3.8';
+const BASE = '/FinanceOS';
 const ASSETS = [
-  '/',
-  '/index.html'
+  BASE + '/',
+  BASE + '/index.html',
+  BASE + '/manifest.json',
+  BASE + '/icons/icon-192.png',
+  BASE + '/icons/icon-512.png'
 ];
 
-// ── Install ──────────────────────────────────────────────────
 self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
@@ -20,7 +23,6 @@ self.addEventListener('install', function(e) {
   );
 });
 
-// ── Activate — clean old caches ──────────────────────────────
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
@@ -35,20 +37,14 @@ self.addEventListener('activate', function(e) {
   );
 });
 
-// ── Fetch — cache-first, fallback to network ─────────────────
 self.addEventListener('fetch', function(e) {
-  // Only handle GET requests
   if (e.request.method !== 'GET') return;
-
-  // Skip cross-origin requests
   if (!e.request.url.startsWith(self.location.origin)) return;
 
   e.respondWith(
     caches.match(e.request).then(function(cached) {
       if (cached) return cached;
-
       return fetch(e.request).then(function(response) {
-        // Cache valid responses
         if (response && response.status === 200) {
           var clone = response.clone();
           caches.open(CACHE_NAME).then(function(cache) {
@@ -57,9 +53,8 @@ self.addEventListener('fetch', function(e) {
         }
         return response;
       }).catch(function() {
-        // Offline fallback — serve index.html for navigation requests
         if (e.request.mode === 'navigate') {
-          return caches.match('/index.html');
+          return caches.match(BASE + '/index.html');
         }
       });
     })
