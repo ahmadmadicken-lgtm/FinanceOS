@@ -1,4 +1,4 @@
-<!-- Finance OS v3.9 Supabase Sync build:20260629223736 -->
+<!-- Finance OS v4.0 Treasury Fix build:20260701021647 -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -8523,44 +8523,94 @@ const Reports = (() => {
   // 8. TREASURY SUMMARY
   // ══════════════════════════════════════════════════════════
   function _buildTreasurySummary(entity, period) {
-    const legs = DB.Treasury.all().filter(function(l){ return Utils.toPeriod(l.try_date)===period; });
-    const refs  = [...new Set(legs.map(function(l){ return l.try_ref; }))];
     const entityName = entity==='ALL' ? 'Semua Entity' : (DB.Entities.byId(entity)||{entity_name:entity}).entity_name;
 
-    if (refs.length === 0) {
-      return _reportHeader('Ringkasan Treasury', entityName + ' — ' + Utils.periodLabel(period), 'Reports.exportTreasury()') +
-        '<div class="report-body"><div class="report-empty-row">Tidak ada pergerakan treasury periode ini</div></div>';
-    }
+    // ── Source 1: DB.Treasury (from Treasury module) ──────────
+    const legs = DB.Treasury.all().filter(function(l){
+      return Utils.toPeriod(l.try_date) === period &&
+        (entity === 'ALL' || l.entity_id === entity);
+    });
+    const refs = [...new Set(legs.map(function(l){ return l.try_ref; }))];
 
-    const rows = refs.map(function(ref){
+    const treasuryRows = refs.map(function(ref){
       const refLegs = legs.filter(function(l){ return l.try_ref===ref; });
       const src = refLegs.find(function(l){ return l.leg==='Source'; });
       const dst = refLegs.find(function(l){ return l.leg==='Destination'; });
       const srcAcct = src ? DB.Accounts.byId(src.account_id) : null;
       const dstAcct = dst ? DB.Accounts.byId(dst.account_id) : null;
-      return { ref, src, dst, srcAcct, dstAcct, amount: src ? src.amount : 0 };
+      return {
+        ref:      ref,
+        date:     src ? src.try_date : '',
+        fromAcct: srcAcct ? srcAcct.account_name : '—',
+        toAcct:   dstAcct ? dstAcct.account_name : '—',
+        amount:   src ? src.amount : 0,
+        notes:    src && src.notes ? src.notes : '—',
+        source:   'Treasury Module'
+      };
     });
 
-    const totalMoved = rows.reduce(function(s,r){ return s+r.amount; }, 0);
+    // ── Source 2: Transactions with TXN-06 (from Transaksi module) ──
+    const txnTreasury = DB.Transactions.all().filter(function(t){
+      return t.type_id === 'TXN-06' &&
+        t.status === 'Posted' &&
+        t.period === period &&
+        (entity === 'ALL' || t.entity_id === entity);
+    });
+
+    // Group by reference_id or pair by date+amount+description
+    const txnRows = txnTreasury.map(function(t){
+      const acct    = DB.Accounts.byId(t.account_id);
+      const counter = t.counter_account_id ? DB.Accounts.byId(t.counter_account_id) : null;
+      return {
+        ref:      t.txn_id,
+        date:     t.txn_date,
+        fromAcct: t.direction === 'Credit' ? (acct ? acct.account_name : t.account_id) : (counter ? counter.account_name : '—'),
+        toAcct:   t.direction === 'Debit'  ? (acct ? acct.account_name : t.account_id) : (counter ? counter.account_name : '—'),
+        amount:   t.amount,
+        notes:    t.description || '—',
+        source:   'Transaksi'
+      };
+    });
+
+    const allRows = treasuryRows.concat(txnRows);
+
+    if (allRows.length === 0) {
+      return _reportHeader('Ringkasan Treasury', entityName + ' — ' + Utils.periodLabel(period), 'Reports.exportTreasury()') +
+        '<div class="report-body"><div class="report-empty-row">Tidak ada pergerakan treasury periode ini</div></div>';
+    }
+
+    const totalMoved = allRows.reduce(function(s,r){ return s + r.amount; }, 0);
 
     return _reportHeader('Ringkasan Treasury', entityName + ' — ' + Utils.periodLabel(period), 'Reports.exportTreasury()') +
       '<div class="report-body">' +
+      (txnRows.length > 0
+        ? '<div class="info-box" style="margin-bottom:.75rem;font-size:.76rem">&#9432; ' + txnRows.length + ' pergerakan dari modul Transaksi (TXN-06) dan ' + treasuryRows.length + ' dari modul Treasury ditampilkan.</div>'
+        : '') +
+      '<div style="overflow-x:auto">' +
       '<table class="table">' +
-        '<thead><tr><th>Referensi</th><th>Tanggal</th><th>Dari</th><th>Ke</th><th class="text-right">Jumlah</th><th>Catatan</th></tr></thead>' +
+        '<thead><tr>' +
+          '<th>Referensi</th><th>Tanggal</th><th>Dari</th><th>Ke</th>' +
+          '<th class="text-right">Jumlah</th><th>Catatan</th><th>Sumber</th>' +
+        '</tr></thead>' +
         '<tbody>' +
-        rows.map(function(r){
+        allRows.map(function(r){
           return '<tr>' +
             '<td class="mono text-sm text-muted">' + r.ref + '</td>' +
-            '<td class="text-sm">' + Utils.formatDate(r.src ? r.src.try_date : '') + '</td>' +
-            '<td class="text-sm">' + (r.srcAcct ? r.srcAcct.account_name : '—') + '</td>' +
-            '<td class="text-sm">' + (r.dstAcct ? r.dstAcct.account_name : '—') + '</td>' +
+            '<td class="text-sm">' + Utils.formatDate(r.date) + '</td>' +
+            '<td class="text-sm">' + r.fromAcct + '</td>' +
+            '<td class="text-sm">' + r.toAcct + '</td>' +
             '<td class="text-right mono">' + Utils.formatIDR(r.amount) + '</td>' +
-            '<td class="text-sm text-muted">' + (r.src && r.src.notes ? r.src.notes : '—') + '</td>' +
+            '<td class="text-sm text-muted">' + r.notes + '</td>' +
+            '<td><span class="badge ' + (r.source==='Treasury Module' ? 'badge-blue' : 'badge-green') + '">' + r.source + '</span></td>' +
           '</tr>';
         }).join('') +
         '</tbody>' +
       '</table>' +
-      '<div class="report-subtotal"><div class="report-row-label"><strong>Total Dana Digerakkan</strong></div><div class="report-row-value"><strong>' + Utils.formatIDR(totalMoved) + '</strong></div></div>' +
+      '</div>' +
+      '<div class="report-subtotal">' +
+        '<div class="report-row-label"><strong>Total Dana Digerakkan</strong></div>' +
+        '<div class="report-row-value"><strong>' + Utils.formatIDR(totalMoved) + '</strong></div>' +
+      '</div>' +
       '</div>';
   }
 
