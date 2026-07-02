@@ -1,16 +1,19 @@
-<!-- Finance OS v4.1 Fasilitas Utang Dashboard build:20260701140913 -->
+<!-- Finance OS v4.7 — Fasilitas Utang Complete — build:20260702050557 -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Finance OS</title>
+  <meta name="description" content="Finance Operating System — Kelola keuangan bisnis dan personal"/>
   <meta name="theme-color" content="#0d1117"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Finance OS"/>
   <link rel="manifest" href="/FinanceOS/manifest.json"/>
   <link rel="apple-touch-icon" href="/FinanceOS/icons/apple-touch-icon.png"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="/FinanceOS/icons/icon-192.png"/>
   <script>
   window.netlifyIdentity={
     on:function(){},off:function(){},open:function(){},close:function(){},
@@ -1868,12 +1871,198 @@ hr { border: none; border-top: 1px solid var(--border); }
   .debt-kpi-grid  { grid-template-columns: 1fr 1fr; }
   .debt-stats-row { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── Debt Detail Page ──────────────────────────────────────── */
+.debt-detail-header {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+  margin-bottom: .75rem;
+}
+.debt-detail-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: .85rem;
+  gap: 1rem;
+}
+.debt-detail-title { font-size: 1.1rem; font-weight: 600; margin-bottom: .2rem; }
+.debt-detail-meta  { font-size: .75rem; color: var(--text-muted); }
+.debt-detail-actions { display: flex; gap: .5rem; flex-shrink: 0; }
+
+.debt-detail-kpi {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: .75rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .75rem;
+}
+.debt-detail-kpi-item { }
+.debt-detail-kpi-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.debt-detail-kpi-val   { font-family: "JetBrains Mono", monospace; font-size: .9rem; font-weight: 600; }
+
+.debt-detail-info {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: .78rem;
+  align-items: center;
+}
+
+/* Tabs */
+.debt-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: .75rem;
+}
+.debt-tab {
+  padding: .55rem 1rem;
+  font-size: .8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+}
+.debt-tab:hover  { color: var(--text); }
+.debt-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.debt-tab-content { }
+
+/* Row states in schedule table */
+.debt-row-paid    { opacity: .55; }
+.debt-row-overdue { background: rgba(240,80,80,.06) !important; }
+
+/* ── Debt Payment Form ─────────────────────────────────────── */
+.debt-payment-summary {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: .85rem 1.1rem;
+  margin-bottom: .75rem;
+}
+.debt-pmt-info-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.debt-pmt-info-val   { font-size: .88rem; font-weight: 600; }
+
+.debt-allocation-box {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+}
+.debt-alloc-row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: .75rem;
+  align-items: center;
+  margin-bottom: .5rem;
+}
+.debt-alloc-label { font-size: .8rem; font-weight: 500; }
+.debt-alloc-input { max-width: 200px; }
+.debt-alloc-coa   { font-size: .72rem; white-space: nowrap; }
+.debt-alloc-divider { border-top: 1px solid var(--border); margin: .5rem 0; }
+.debt-alloc-total .debt-alloc-label { font-weight: 700; }
+.debt-alloc-total-val {
+  background: var(--bg-surface);
+  font-family: "JetBrains Mono", monospace;
+  font-size: .85rem;
+  display: flex;
+  align-items: center;
+  max-width: 200px;
+}
+.debt-alloc-check { font-size: .75rem; }
+
+.debt-credit-update {
+  background: var(--green-dim);
+  border: 1px solid var(--green);
+  border-radius: var(--radius);
+  padding: .75rem 1rem;
+}
+.debt-credit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .82rem;
+  padding: .3rem 0;
+}
+.debt-credit-after {
+  border-top: 1px solid var(--green);
+  margin-top: .35rem;
+  padding-top: .5rem;
+  font-size: .88rem;
+}
+
+/* ── Debt Dashboard Integration ────────────────────────────── */
+.debt-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .75rem;
+  padding: .75rem 0 .5rem;
+  border-top: 1px solid var(--border);
+  margin-top: .5rem;
+}
+.debt-dash-stat  { }
+.debt-dash-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.debt-dash-val   { font-size: .9rem; font-weight: 600; font-family: "JetBrains Mono", monospace; }
+
+@media (max-width: 700px) {
+  .debt-dash-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Debt Reports ──────────────────────────────────────────── */
+.debt-report-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .75rem;
+  margin-bottom: .5rem;
+}
+.debt-rep-card  { background: var(--bg-raised); border-radius: var(--radius); padding: .65rem .85rem; }
+.debt-rep-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.debt-rep-val   { font-family: "JetBrains Mono", monospace; font-size: .92rem; font-weight: 600; }
+
+.debt-prog-bar-wrap { background: var(--bg-raised); border-radius: 4px; height: 6px; overflow: hidden; width: 80px; }
+.debt-prog-bar      { height: 100%; background: var(--red); border-radius: 4px; }
+
+.debt-proj-bars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  height: 160px;
+  align-items: flex-end;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: .5rem;
+}
+.debt-proj-bar-item  { display: flex; flex-direction: column; align-items: center; gap: .3rem; height: 100%; justify-content: flex-end; }
+.debt-proj-bar-label { font-size: .72rem; font-weight: 600; color: var(--text-muted); }
+.debt-proj-bar-wrap  { width: 100%; background: var(--bg-raised); border-radius: 4px; height: 100px; display: flex; align-items: flex-end; overflow: hidden; }
+.debt-proj-bar-fill  { width: 100%; background: var(--blue); border-radius: 4px 4px 0 0; transition: height .3s; min-height: 4px; }
+.debt-proj-bar-val   { font-size: .72rem; font-family: "JetBrains Mono", monospace; }
+.debt-proj-bar-count { font-size: .65rem; }
+
+@media (max-width: 700px) {
+  .debt-report-summary { grid-template-columns: repeat(2, 1fr); }
+}
 </style>
 </head>
 <body>
   <div id="app">
     <nav id="sidebar">
-      <div id="app-logo"><span class="logo-icon">&#9672;</span><span class="logo-text">Finance OS</span></div>
+      <div id="app-logo">
+        <span class="logo-icon">&#9672;</span>
+        <span class="logo-text">Finance OS</span>
+      </div>
       <ul id="nav-links"></ul>
     </nav>
     <main id="content">
@@ -1881,6 +2070,7 @@ hr { border: none; border-top: 1px solid var(--border); }
       <section id="page-body"></section>
     </main>
   </div>
+
   <script>
 // ============================================================
 // FINANCE OS — SEED DATA
@@ -3117,6 +3307,15 @@ const SupabaseSync = (() => {
     'fos_settings', 'fos_seed_loaded'
   ];
 
+  // Debt management keys — pulled/pushed as transaction data, not settings
+  // Already in TABLE_MAP so auto-sync via queueBulkSync on every _set()
+  // Listed here for explicit pull/push operations
+  const DEBT_KEYS = [
+    'fos_debt_register',
+    'fos_debt_schedule',
+    'fos_debt_payments'
+  ];
+
   var _initialized = false;
   var _online      = navigator.onLine;
   var _syncQueue   = [];
@@ -3208,37 +3407,56 @@ const SupabaseSync = (() => {
 
   // ── Pull all data from Supabase → localStorage ──────────────
   async function pullFromSupabase() {
-    // Pull transaction tables
+    // Pull all transaction + debt tables via TABLE_MAP
     for (var lsKey in TABLE_MAP) {
       var map  = TABLE_MAP[lsKey];
-      var rows = await _api('GET', map.table + '?select=data&order=updated_at.asc', null);
-      if (rows && rows.length > 0) {
-        var records = rows.map(function(r) { return r.data; });
-        localStorage.setItem(lsKey, JSON.stringify(records));
+      try {
+        var rows = await _api('GET', map.table + '?select=data&order=updated_at.asc', null);
+        if (rows && rows.length > 0) {
+          var records = rows.map(function(r) { return r.data; });
+          localStorage.setItem(lsKey, JSON.stringify(records));
+        }
+      } catch(e) {
+        console.warn('[SupabaseSync] Pull failed for', lsKey, ':', e.message);
       }
     }
 
-    // Pull settings
-    var settings = await _api('GET', 'fos_settings?select=key,data', null);
-    if (settings && settings.length > 0) {
-      settings.forEach(function(s) {
-        if (s.data !== null) {
-          localStorage.setItem(s.key, JSON.stringify(s.data));
-        }
-      });
+    // Pull settings & master data
+    try {
+      var settings = await _api('GET', 'fos_settings?select=key,data', null);
+      if (settings && settings.length > 0) {
+        settings.forEach(function(s) {
+          if (s.data !== null) {
+            localStorage.setItem(s.key, JSON.stringify(s.data));
+          }
+        });
+      }
+    } catch(e) {
+      console.warn('[SupabaseSync] Pull settings failed:', e.message);
     }
   }
 
   // ── Push ALL local data to Supabase ─────────────────────────
   async function pushAllToSupabase() {
     _showSyncStatus('syncing');
+    var pushed = 0, failed = 0;
     try {
+      // Push all transaction + debt tables
       for (var lsKey in TABLE_MAP) {
-        await pushAll(lsKey);
+        try {
+          await pushAll(lsKey);
+          pushed++;
+        } catch(e) {
+          console.warn('[SupabaseSync] Push failed for', lsKey, ':', e.message);
+          failed++;
+        }
       }
+      // Push master data & settings
       await pushSettings();
       _showSyncStatus('synced');
-      Utils.toast('Sync ke Supabase berhasil');
+      var msg = 'Sync berhasil — ' + pushed + ' tabel';
+      if (failed > 0) msg += ', ' + failed + ' gagal';
+      Utils.toast(msg);
     } catch(e) {
       _showSyncStatus('error');
       Utils.toast('Sync gagal: ' + e.message, 'error');
@@ -3292,10 +3510,11 @@ const SupabaseSync = (() => {
     }
 
     var states = {
-      synced:  { text: '● Synced',   bg: 'var(--green)',  color: '#fff' },
-      syncing: { text: '↻ Syncing…', bg: 'var(--blue)',   color: '#fff' },
-      offline: { text: '● Offline',  bg: 'var(--yellow)', color: '#000' },
-      error:   { text: '● Sync Error',bg: 'var(--red)',   color: '#fff' }
+      synced:  { text: '● Synced',      bg: 'var(--green)',  color: '#fff' },
+      syncing: { text: '↻ Syncing…',    bg: 'var(--blue)',   color: '#fff' },
+      offline: { text: '● Offline',     bg: 'var(--yellow)', color: '#000' },
+      error:   { text: '● Sync Error',  bg: 'var(--red)',    color: '#fff' },
+      partial: { text: '⚠ Partial Sync',bg: 'var(--yellow)', color: '#000' }
     };
 
     var s = states[status] || states.offline;
@@ -3374,6 +3593,25 @@ const SupabaseSync = (() => {
     }, 2000);
   }
 
+  // ── Sync health check ────────────────────────────────────────
+  async function checkSyncHealth() {
+    if (!_online) return { ok: false, reason: 'Offline' };
+    try {
+      // Quick check: count rows in fos_transactions on Supabase
+      var remote = await _api('GET', 'fos_transactions?select=txn_id&limit=1', null);
+      var local  = JSON.parse(localStorage.getItem('fos_transactions') || '[]');
+      var remoteDebt = await _api('GET', 'fos_debt_register?select=debt_id&limit=1', null);
+      var localDebt  = JSON.parse(localStorage.getItem('fos_debt_register') || '[]');
+      return {
+        ok: true,
+        transactions: { local: local.length, remote_has_data: remote && remote.length > 0 },
+        debt_register: { local: localDebt.length, remote_has_data: remoteDebt && remoteDebt.length > 0 }
+      };
+    } catch(e) {
+      return { ok: false, reason: e.message };
+    }
+  }
+
   return {
     init,
     queueSync,
@@ -3383,7 +3621,8 @@ const SupabaseSync = (() => {
     pushAllToSupabase,
     pullFromSupabase,
     manualSync,
-    manualPull
+    manualPull,
+    checkSyncHealth
   };
 
 })();
@@ -3393,6 +3632,22 @@ const SupabaseSync = (() => {
 // ============================================================
 
 const Dashboard = (() => {
+
+  // ── Debt Alert Card ──────────────────────────────────────
+  function _debtAlert(summary, overdueCount) {
+    if (summary.count_active === 0) return '';
+    var cls = overdueCount > 0 ? 'alert-card alert-warn' : 'alert-card alert-ok';
+    var icon = overdueCount > 0 ? '&#9888;' : '&#9673;';
+    var msg  = overdueCount > 0
+      ? overdueCount + ' angsuran overdue'
+      : summary.count_active + ' fasilitas aktif';
+    return '<div class="' + cls + '" data-nav="debt" style="cursor:pointer">' +
+      '<div class="alert-label">Fasilitas Utang</div>' +
+      '<div class="alert-icon">' + icon + '</div>' +
+      '<div class="alert-value">' + Utils.formatIDR(summary.total_outstanding) + '</div>' +
+      '<div class="alert-sub">' + msg + '</div>' +
+    '</div>';
+  }
 
   // ── Data Integrity Check ─────────────────────────────────
   function _integrityCheck(entity, period) {
@@ -3530,6 +3785,50 @@ const Dashboard = (() => {
     '</div>';
   }
 
+  function _debtSummaryCard(summary, upcoming, obligation, period) {
+    return '<div class="card" style="margin-top:1rem">' +
+      '<div class="card-header">' +
+        '<div class="card-title">Fasilitas Utang — ' + summary.count_active + ' aktif</div>' +
+        '<button class="btn btn-ghost btn-sm" data-nav="debt">Lihat Detail &#8594;</button>' +
+      '</div>' +
+      '<div class="debt-dash-grid">' +
+
+        '<div class="debt-dash-stat">' +
+          '<div class="debt-dash-label">Total Outstanding</div>' +
+          '<div class="debt-dash-val text-red">' + Utils.formatIDR(summary.total_outstanding) + '</div>' +
+        '</div>' +
+        '<div class="debt-dash-stat">' +
+          '<div class="debt-dash-label">Kewajiban ' + Utils.periodLabel(period) + '</div>' +
+          '<div class="debt-dash-val">' + Utils.formatIDR(obligation) + '</div>' +
+        '</div>' +
+        '<div class="debt-dash-stat">' +
+          '<div class="debt-dash-label">Available Credit</div>' +
+          '<div class="debt-dash-val text-green">' + Utils.formatIDR(summary.total_available) + '</div>' +
+        '</div>' +
+        '<div class="debt-dash-stat">' +
+          '<div class="debt-dash-label">Jatuh Tempo 7 Hari</div>' +
+          '<div class="debt-dash-val ' + (upcoming.length > 0 ? 'text-yellow' : '') + '">' +
+            upcoming.length + ' angsuran' +
+          '</div>' +
+        '</div>' +
+
+      '</div>' +
+
+      (upcoming.length > 0
+        ? '<div style="margin-top:.5rem;font-size:.76rem;color:var(--text-muted)">' +
+            '<strong>Segera jatuh tempo:</strong> ' +
+            upcoming.slice(0,3).map(function(s) {
+              var debt = DB.DebtRegister.byId(s.debt_id);
+              return (debt ? debt.description : s.debt_id) +
+                ' (' + Utils.formatDate(s.due_date) + ' — ' + Utils.formatIDR(s.total_installment) + ')';
+            }).join(' &nbsp;|&nbsp; ') +
+            (upcoming.length > 3 ? ' &nbsp;+' + (upcoming.length-3) + ' lainnya' : '') +
+          '</div>'
+        : '') +
+
+    '</div>';
+  }
+
   function render() {
     const body = document.getElementById("page-body");
     if (!body) return;
@@ -3548,9 +3847,13 @@ const Dashboard = (() => {
       const arTotal   = (arAging.current||0) + arOverdue;
       const apTotal   = (apAging.current||0) + apOverdue;
 
-      const recent    = DB.Transactions.recent(8);
-      const buData    = DB.Reports.buProfitability(entity, period);
-      const integrity = _integrityCheck(entity, period);
+      const recent      = DB.Transactions.recent(8);
+      const buData      = DB.Reports.buProfitability(entity, period);
+      const integrity   = _integrityCheck(entity, period);
+      const debtSummary = DB.DebtRegister.summary(entity);
+      const debtOverdue = DB.DebtSchedule.overdue().length;
+      const debtUpcoming= DB.DebtSchedule.upcoming(7);
+      const debtObligation = DB.DebtPayments.monthlyObligation(period);
 
       const html = [
         '<div class="dashboard">',
@@ -3570,6 +3873,7 @@ const Dashboard = (() => {
         '<div class="alert-row">',
         _alert("Piutang Jatuh Tempo", arOverdue, arTotal, "receivables"),
         _alert("Utang Jatuh Tempo",   apOverdue, apTotal, "payables"),
+        _debtAlert(debtSummary, debtOverdue),
         '</div>',
 
         // Two col: Recent + BU
@@ -3584,10 +3888,19 @@ const Dashboard = (() => {
         _agingCard("Aging Utang",   apAging, "payables"),
         '</div>',
 
+        // Debt Summary Card
+        debtSummary.count_active > 0 ? _debtSummaryCard(debtSummary, debtUpcoming, debtObligation, period) : '',
+
         '</div>'
       ].join('');
 
       body.innerHTML = html;
+
+      // Bind data-nav clicks
+      body.onclick = function(e) {
+        var el = e.target.closest('[data-nav]');
+        if (el) App.navigate(el.getAttribute('data-nav'));
+      };
 
       // Bind integrity panel clicks via delegation
       var panel = body.querySelector('.integrity-list');
@@ -7774,17 +8087,16 @@ const DebtModule = (() => {
 
   // ── Export CSV ────────────────────────────────────────────
   function exportRegister() {
-    var all = DB.DebtRegister.all();
-    Utils.exportCSV(
-      ['ID','Deskripsi','Kategori','Tipe','Outstanding','Limit','Available','Rate','Tenor','Sisa Angsuran','Jatuh Tempo','Status'],
-      all.map(function(d){
-        return [d.debt_id, d.description, d.debt_category, d.debt_type,
-          d.outstanding_principal, d.credit_limit||'', d.available_credit||'',
-          d.interest_rate||0, d.tenor_months||'', d.remaining_installments||'',
-          d.next_due_date||'', d.status];
-      }),
-      'debt-register-' + Utils.today() + '.csv'
-    );
+    var all  = DB.DebtRegister.all();
+    var hdrs = ['ID','Deskripsi','Kategori','Tipe','Outstanding','Limit','Available','Rate','Tenor','Sisa Angsuran','Jatuh Tempo','Status'];
+    var rows = all.map(function(d){
+      return [d.debt_id, d.description, d.debt_category, d.debt_type || '',
+        d.outstanding_principal || 0, d.credit_limit || '',
+        d.available_credit || '', d.interest_rate || 0,
+        d.tenor_months || '', d.remaining_installments || '',
+        d.next_due_date || '', d.status];
+    });
+    Utils.exportCSV(hdrs, rows, 'debt-register-' + Utils.today() + '.csv');
     Utils.toast('Export berhasil');
   }
 
@@ -7794,13 +8106,1184 @@ const DebtModule = (() => {
   function showPayment(id)    { _selectedDebtId = id; _view = 'payment'; _renderPayment(); }
 
   // Stubs for next stages
-  function _renderFormNew()  { document.getElementById('page-body').innerHTML = '<div class="debt-page"><div class="debt-breadcrumb"><button class="btn btn-ghost btn-sm" onclick="DebtModule.render()">&#8592; Dashboard</button></div><div class="info-box" style="margin-top:1rem">&#9679; Form Input Fasilitas Baru — akan dibangun di Stage 4c</div></div>'; }
-  function _renderDetail()   { document.getElementById('page-body').innerHTML = '<div class="debt-page"><div class="debt-breadcrumb"><button class="btn btn-ghost btn-sm" onclick="DebtModule.showRegister()">&#8592; Register</button></div><div class="info-box" style="margin-top:1rem">&#9679; Detail Fasilitas — akan dibangun di Stage 4d</div></div>'; }
-  function _renderPayment()  { document.getElementById('page-body').innerHTML = '<div class="debt-page"><div class="debt-breadcrumb"><button class="btn btn-ghost btn-sm" onclick="DebtModule.showRegister()">&#8592; Register</button></div><div class="info-box" style="margin-top:1rem">&#9679; Catat Pembayaran — akan dibangun di Stage 4e</div></div>'; }
+  function _renderFormNew() {
+    var body       = document.getElementById('page-body');
+    var entities   = DB.Entities.active();
+    var cps        = DB.Counterparties.active();
+    var cashAccts  = DB.Accounts.all().filter(function(a){ return ['Bank','E-Wallet','Platform'].includes(a.account_type) && a.status === 'Active'; });
+    var creditAccts= DB.Accounts.all().filter(function(a){ return ['Credit','Loan'].includes(a.account_type) && a.status === 'Active'; });
+    var allAccts   = cashAccts.concat(creditAccts);
+
+    body.innerHTML =
+      '<div class="debt-page">' +
+      '<div class="debt-breadcrumb">' +
+        '<button class="btn btn-ghost btn-sm" onclick="DebtModule.render()">&#8592; Dashboard</button>' +
+        '<span class="text-muted text-sm">/ Fasilitas Baru</span>' +
+      '</div>' +
+
+      '<div class="form-card">' +
+
+        // ── Section 1: Klasifikasi ──────────────────────────
+        '<div class="form-section">' +
+          '<div class="form-section-title">1 — Klasifikasi</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Entity <span class="required">*</span></label>' +
+              '<select class="form-input" id="df-entity" onchange="DebtModule.onEntityChange()">' +
+                '<option value="">— Pilih Entity —</option>' +
+                entities.map(function(e){ return '<option value="'+e.entity_id+'">'+e.entity_name+'</option>'; }).join('') +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Business Unit <span class="required">*</span></label>' +
+              '<select class="form-input" id="df-bu">' +
+                '<option value="">— Pilih Entity dulu —</option>' +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Activity</label>' +
+              '<select class="form-input" id="df-activity">' +
+                '<option value="">— Opsional —</option>' +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Kategori <span class="required">*</span></label>' +
+              '<select class="form-input" id="df-category" onchange="DebtModule.onCategoryChange()">' +
+                '<option value="">— Pilih Kategori —</option>' +
+                '<option value="Revolving">Revolving (CC / BNPL)</option>' +
+                '<option value="Installment">Cicilan (KTA / Pinjaman)</option>' +
+                '<option value="Supplier">Supplier / Vendor</option>' +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Tipe Fasilitas <span class="required">*</span></label>' +
+              '<select class="form-input" id="df-type">' +
+                '<option value="">— Pilih Tipe —</option>' +
+                '<option value="Credit Card">Kartu Kredit</option>' +
+                '<option value="BNPL">Buy Now Pay Later</option>' +
+                '<option value="KTA">KTA</option>' +
+                '<option value="Bank Loan">Pinjaman Bank</option>' +
+                '<option value="Personal Loan">Pinjaman Pribadi</option>' +
+                '<option value="Supplier Debt">Utang Supplier</option>' +
+                '<option value="Other">Lainnya</option>' +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Credit Limit Type</label>' +
+              '<select class="form-input" id="df-limit-type">' +
+                '<option value="Non_Revolving">Non-Revolving (tidak ada limit)</option>' +
+                '<option value="Full_Revolving">Full Revolving (CC — limit kembali 100%)</option>' +
+                '<option value="Principal_Only">Principal Only (Allo — limit kembali sebesar pokok)</option>' +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // ── Section 2: Identitas ────────────────────────────
+        '<div class="form-section">' +
+          '<div class="form-section-title">2 — Identitas Fasilitas</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Financial Account <span class="required">*</span></label>' +
+              '<select class="form-input" id="df-account">' +
+                '<option value="">— Pilih Akun —</option>' +
+                allAccts.map(function(a){ return '<option value="'+a.account_id+'" data-coa="'+a.coa_code+'">'+a.account_name+' ('+a.account_type+')</option>'; }).join('') +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Kreditur</label>' +
+              '<select class="form-input" id="df-cp">' +
+                '<option value="">— Opsional —</option>' +
+                cps.map(function(c){ return '<option value="'+c.cp_id+'">'+c.cp_name+'</option>'; }).join('') +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Deskripsi <span class="required">*</span></label>' +
+              '<input class="form-input" id="df-desc" placeholder="Contoh: HSBC CC, Cicilan Laptop Allo, Shopee Pinjam">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Nomor Referensi</label>' +
+              '<input class="form-input" id="df-ref" placeholder="Nomor kontrak / kartu (opsional)">' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // ── Section 3: Posisi Keuangan ──────────────────────
+        '<div class="form-section">' +
+          '<div class="form-section-title">3 — Posisi Keuangan</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group" id="df-limit-group">' +
+              '<label>Credit Limit</label>' +
+              '<input class="form-input" type="number" id="df-limit" placeholder="0">' +
+              '<small class="form-hint">Untuk kartu kredit dan BNPL</small>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Jumlah Awal / Pokok Pinjaman <span class="required">*</span></label>' +
+              '<input class="form-input" type="number" id="df-original" placeholder="0" oninput="DebtModule.onAmountChange()">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Outstanding Saat Ini <span class="required">*</span></label>' +
+              '<input class="form-input" type="number" id="df-outstanding" placeholder="0">' +
+              '<small class="form-hint">Sisa pokok yang belum dibayar</small>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Suku Bunga (% per tahun)</label>' +
+              '<input class="form-input" type="number" id="df-rate" placeholder="0" step="0.01" oninput="DebtModule.onRateChange()">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Tipe Bunga</label>' +
+              '<select class="form-input" id="df-interest-type" onchange="DebtModule.onRateChange()">' +
+                '<option value="None">Tidak Ada Bunga</option>' +
+                '<option value="Flat">Flat Rate</option>' +
+                '<option value="Effective">Effective Rate (Anuitas)</option>' +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Billing Method</label>' +
+              '<select class="form-input" id="df-billing">' +
+                '<option value="Bundled_Unknown">Bundled Unknown — total cicilan saja, tidak dipisah</option>' +
+                '<option value="Separated">Separated — bunga dicatat terpisah di billing</option>' +
+                '<option value="Bundled_Known">Bundled Known — flat rate, bisa dihitung breakdown</option>' +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Admin Fee (jika ada)</label>' +
+              '<input class="form-input" type="number" id="df-admin-fee" placeholder="0">' +
+              '<small class="form-hint">Dicatat sebagai beban di hari H, tidak masuk pokok</small>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Cicilan per Bulan</label>' +
+              '<input class="form-input" type="number" id="df-monthly" placeholder="0 (auto-hitung)">' +
+              '<small class="form-hint" id="df-monthly-hint">Isi manual atau biarkan sistem menghitung</small>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // ── Section 4: Jadwal ───────────────────────────────
+        '<div class="form-section">' +
+          '<div class="form-section-title">4 — Jadwal</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Tenor (bulan)</label>' +
+              '<input class="form-input" type="number" id="df-tenor" placeholder="0" oninput="DebtModule.onTenorChange()">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Sisa Angsuran <span class="required">*</span></label>' +
+              '<input class="form-input" type="number" id="df-remaining" placeholder="0">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Tanggal Mulai <span class="required">*</span></label>' +
+              '<input class="form-input" type="date" id="df-start" value="'+Utils.today()+'">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Jatuh Tempo Berikutnya <span class="required">*</span></label>' +
+              '<input class="form-input" type="date" id="df-next-due">' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // ── Section 5: Opening Balance ──────────────────────
+        '<div class="form-section">' +
+          '<div class="form-section-title">5 — Tipe Pencatatan</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>' +
+                '<input type="checkbox" id="df-is-opening" onchange="DebtModule.onOpeningChange()" style="margin-right:.4rem">' +
+                'Ini adalah Opening Balance (data historis)' +
+              '</label>' +
+              '<small class="form-hint">Centang jika utang ini sudah ada sebelumnya dan kamu hanya mencatat posisi saat ini</small>' +
+            '</div>' +
+            '<div class="form-group" id="df-opening-date-group" style="display:none">' +
+              '<label>Tanggal Posisi Opening</label>' +
+              '<input class="form-input" type="date" id="df-opening-date" value="'+Utils.today()+'">' +
+              '<small class="form-hint">Tanggal saat kamu mulai mencatat utang ini di sistem</small>' +
+            '</div>' +
+          '</div>' +
+          '<div class="info-box" id="df-opening-info" style="display:none">' +
+            '&#9432; Sistem akan generate jadwal angsuran hanya untuk sisa angsuran yang tersisa. ' +
+            'Tidak perlu input transaksi historis. ' +
+            'Outstanding akan dimulai dari angka yang kamu input di Section 3.' +
+          '</div>' +
+        '</div>' +
+
+        // ── Schedule Preview ────────────────────────────────
+        '<div class="form-section" id="df-schedule-preview" style="display:none">' +
+          '<div class="form-section-title">Preview Jadwal Angsuran</div>' +
+          '<div id="df-schedule-table"></div>' +
+        '</div>' +
+
+        '<div id="df-errors" class="error-box" style="display:none"></div>' +
+
+        '<div class="form-actions-bar">' +
+          '<button class="btn btn-ghost" onclick="DebtModule.render()">Batal</button>' +
+          '<button class="btn btn-secondary" onclick="DebtModule.previewSchedule()">&#128065; Preview Jadwal</button>' +
+          '<button class="btn btn-primary" onclick="DebtModule.saveNew()">&#10003; Simpan & Generate Jadwal</button>' +
+        '</div>' +
+
+      '</div>' + // form-card
+      '</div>';  // debt-page
+  }
+
+  // ── Form Event Handlers ───────────────────────────────────
+  function onEntityChange() {
+    var entityId = (document.getElementById('df-entity') || {}).value;
+    var buSel    = document.getElementById('df-bu');
+    var actSel   = document.getElementById('df-activity');
+    if (!buSel) return;
+    buSel.innerHTML = '<option value="">— Pilih BU —</option>';
+    if (actSel) actSel.innerHTML = '<option value="">— Opsional —</option>';
+    if (!entityId) return;
+    DB.BU.byEntity(entityId).forEach(function(b) {
+      var opt = document.createElement('option');
+      opt.value = b.bu_id; opt.textContent = b.bu_name;
+      buSel.appendChild(opt);
+    });
+    if (actSel) {
+      DB.Activities.all().filter(function(a){ return a.entity_id === entityId; }).forEach(function(a) {
+        var opt = document.createElement('option');
+        opt.value = a.activity_id; opt.textContent = a.activity_name;
+        actSel.appendChild(opt);
+      });
+    }
+  }
+
+  function onCategoryChange() {
+    var cat      = (document.getElementById('df-category') || {}).value;
+    var limitGrp = document.getElementById('df-limit-group');
+    var limitTypeSel = document.getElementById('df-limit-type');
+    if (limitGrp) limitGrp.style.display = cat === 'Revolving' ? 'block' : 'none';
+    if (limitTypeSel) {
+      limitTypeSel.value = cat === 'Revolving' ? 'Full_Revolving' : 'Non_Revolving';
+    }
+  }
+
+  function onAmountChange() {
+    var orig = parseFloat((document.getElementById('df-original') || {}).value) || 0;
+    var outEl = document.getElementById('df-outstanding');
+    if (outEl && !outEl.value) outEl.value = orig;
+    _autoCalcMonthly();
+  }
+
+  function onRateChange() { _autoCalcMonthly(); }
+  function onTenorChange() {
+    var tenor     = parseInt((document.getElementById('df-tenor') || {}).value) || 0;
+    var remaining = document.getElementById('df-remaining');
+    if (remaining && !remaining.value && tenor) remaining.value = tenor;
+    _autoCalcMonthly();
+  }
+
+  function _autoCalcMonthly() {
+    var orig     = parseFloat((document.getElementById('df-original')     || {}).value) || 0;
+    var rate     = parseFloat((document.getElementById('df-rate')          || {}).value) || 0;
+    var tenor    = parseInt((document.getElementById('df-tenor')           || {}).value) || 0;
+    var intType  = (document.getElementById('df-interest-type') || {}).value || 'None';
+    var billing  = (document.getElementById('df-billing')       || {}).value || 'Bundled_Unknown';
+    var hint     = document.getElementById('df-monthly-hint');
+    var monthlyEl= document.getElementById('df-monthly');
+    if (!orig || !tenor) return;
+
+    var monthly = 0;
+    var r = rate / 100 / 12;
+
+    if (billing === 'Bundled_Unknown') {
+      if (hint) hint.textContent = 'Masukkan total cicilan bulanan sesuai billing';
+      return;
+    }
+
+    if (intType === 'Flat' && r > 0) {
+      monthly = Math.round(orig / tenor + orig * r);
+      if (hint) hint.textContent = 'Auto: Rp ' + Utils.formatIDR(monthly) + ' (flat rate)';
+    } else if (intType === 'Effective' && r > 0) {
+      monthly = Math.round(orig * (r * Math.pow(1+r, tenor)) / (Math.pow(1+r, tenor) - 1));
+      if (hint) hint.textContent = 'Auto: Rp ' + Utils.formatIDR(monthly) + ' (anuitas)';
+    } else if (intType === 'None') {
+      monthly = Math.round(orig / tenor);
+      if (hint) hint.textContent = 'Auto: Rp ' + Utils.formatIDR(monthly) + ' (tanpa bunga)';
+    }
+
+    if (monthlyEl && monthly > 0 && !monthlyEl.dataset.userEdited) {
+      monthlyEl.value = monthly;
+    }
+  }
+
+  function onOpeningChange() {
+    var checked  = (document.getElementById('df-is-opening') || {}).checked;
+    var dateGrp  = document.getElementById('df-opening-date-group');
+    var infoBox  = document.getElementById('df-opening-info');
+    if (dateGrp) dateGrp.style.display = checked ? 'block' : 'none';
+    if (infoBox) infoBox.style.display = checked ? 'block' : 'none';
+  }
+
+  // ── Preview Schedule ──────────────────────────────────────
+  function previewSchedule() {
+    var draft = _collectFormData();
+    if (!draft) return;
+
+    var schedules = DB.DebtSchedule.generate(draft);
+    var preview   = document.getElementById('df-schedule-preview');
+    var table     = document.getElementById('df-schedule-table');
+    if (!preview || !table) return;
+
+    preview.style.display = 'block';
+    if (schedules.length === 0) {
+      table.innerHTML = '<div class="text-muted text-sm">Tidak ada jadwal yang bisa di-generate. Periksa Sisa Angsuran dan Jatuh Tempo Berikutnya.</div>';
+      return;
+    }
+
+    table.innerHTML =
+      '<div style="overflow-x:auto">' +
+      '<table class="table debt-table">' +
+        '<thead><tr>' +
+          '<th>#</th><th>Jatuh Tempo</th><th class="text-right">Pokok</th>' +
+          '<th class="text-right">Bunga</th><th class="text-right">Total</th>' +
+          '<th class="text-right">Sisa Setelah</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+        schedules.slice(0, 24).map(function(s) {
+          return '<tr>' +
+            '<td class="text-sm text-muted">' + s.installment_no + '</td>' +
+            '<td class="text-sm">' + Utils.formatDate(s.due_date) + '</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(s.principal) + '</td>' +
+            '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(s.interest) + '</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(s.total_installment) + '</td>' +
+            '<td class="text-right mono text-sm text-muted">' + Utils.formatIDR(s.outstanding_after) + '</td>' +
+          '</tr>';
+        }).join('') +
+        (schedules.length > 24 ? '<tr><td colspan="6" class="text-center text-muted text-sm">... dan ' + (schedules.length-24) + ' angsuran lainnya</td></tr>' : '') +
+        '</tbody>' +
+        '<tfoot><tr>' +
+          '<td colspan="2" class="text-muted text-sm">Total ' + schedules.length + ' angsuran</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(schedules.reduce(function(s,x){ return s+x.principal; },0)) + '</td>' +
+          '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(schedules.reduce(function(s,x){ return s+x.interest; },0)) + '</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(schedules.reduce(function(s,x){ return s+x.total_installment; },0)) + '</td>' +
+          '<td></td>' +
+        '</tr></tfoot>' +
+      '</table>' +
+      '</div>';
+
+    preview.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ── Collect Form Data ─────────────────────────────────────
+  function _collectFormData() {
+    var entity    = (document.getElementById('df-entity')       || {}).value || '';
+    var bu        = (document.getElementById('df-bu')           || {}).value || '';
+    var activity  = (document.getElementById('df-activity')     || {}).value || '';
+    var category  = (document.getElementById('df-category')     || {}).value || '';
+    var type      = (document.getElementById('df-type')         || {}).value || '';
+    var limitType = (document.getElementById('df-limit-type')   || {}).value || 'Non_Revolving';
+    var account   = (document.getElementById('df-account')      || {}).value || '';
+    var cp        = (document.getElementById('df-cp')           || {}).value || '';
+    var desc      = (document.getElementById('df-desc')         || {}).value || '';
+    var ref       = (document.getElementById('df-ref')          || {}).value || '';
+    var limit     = parseFloat((document.getElementById('df-limit')      || {}).value) || 0;
+    var original  = parseFloat((document.getElementById('df-original')   || {}).value) || 0;
+    var outstanding=parseFloat((document.getElementById('df-outstanding') || {}).value) || 0;
+    var rate      = parseFloat((document.getElementById('df-rate')        || {}).value) || 0;
+    var intType   = (document.getElementById('df-interest-type') || {}).value || 'None';
+    var billing   = (document.getElementById('df-billing')       || {}).value || 'Bundled_Unknown';
+    var adminFee  = parseFloat((document.getElementById('df-admin-fee')  || {}).value) || 0;
+    var monthly   = parseFloat((document.getElementById('df-monthly')    || {}).value) || 0;
+    var tenor     = parseInt((document.getElementById('df-tenor')         || {}).value) || 0;
+    var remaining = parseInt((document.getElementById('df-remaining')     || {}).value) || 0;
+    var start     = (document.getElementById('df-start')       || {}).value || Utils.today();
+    var nextDue   = (document.getElementById('df-next-due')    || {}).value || '';
+    var isOpening = (document.getElementById('df-is-opening')  || {}).checked || false;
+    var openDate  = (document.getElementById('df-opening-date')|| {}).value || Utils.today();
+
+    var errBox = document.getElementById('df-errors');
+    var errors = [];
+    if (!entity)    errors.push('Entity wajib dipilih');
+    if (!bu)        errors.push('Business Unit wajib dipilih');
+    if (!category)  errors.push('Kategori wajib dipilih');
+    if (!account)   errors.push('Financial Account wajib dipilih');
+    if (!desc)      errors.push('Deskripsi wajib diisi');
+    if (!original || original <= 0) errors.push('Jumlah Awal wajib diisi');
+    if (!outstanding || outstanding <= 0) errors.push('Outstanding Saat Ini wajib diisi');
+    if (!remaining || remaining <= 0) errors.push('Sisa Angsuran wajib diisi');
+    if (!nextDue)   errors.push('Jatuh Tempo Berikutnya wajib diisi');
+
+    if (errors.length > 0) {
+      if (errBox) { errBox.style.display = 'block'; errBox.innerHTML = '<ul>' + errors.map(function(e){ return '<li>'+e+'</li>'; }).join('') + '</ul>'; }
+      return null;
+    }
+    if (errBox) errBox.style.display = 'none';
+
+    // Available credit
+    var availCredit = null;
+    if (limit > 0) {
+      availCredit = limitType === 'Full_Revolving'
+        ? limit - outstanding
+        : limit - outstanding;
+    }
+
+    return {
+      debt_id:              _newDebtId(),
+      entity_id:            entity,
+      bu_id:                bu,
+      activity_id:          activity || null,
+      account_id:           account,
+      cp_id:                cp || null,
+      debt_category:        category,
+      debt_type:            type || 'Other',
+      description:          desc,
+      reference_no:         ref || null,
+      credit_limit:         limit || null,
+      credit_limit_type:    limitType,
+      available_credit:     availCredit,
+      original_amount:      original,
+      outstanding_principal:outstanding,
+      interest_rate:        rate,
+      interest_type:        intType,
+      billing_method:       billing,
+      admin_fee:            adminFee,
+      monthly_installment:  monthly,
+      tenor_months:         tenor || null,
+      remaining_installments: remaining,
+      start_date:           start,
+      next_due_date:        nextDue,
+      settlement_date:      null,
+      status:               'Active',
+      is_opening_balance:   isOpening,
+      opening_balance_date: isOpening ? openDate : null,
+      converted_from:       null,
+      is_conversion:        false,
+      created_at:           Utils.today(),
+      notes:                null
+    };
+  }
+
+  // ── Save New ──────────────────────────────────────────────
+  function saveNew() {
+    var debt = _collectFormData();
+    if (!debt) return;
+
+    // Save debt register
+    DB.DebtRegister.save(debt);
+
+    // Generate and save schedule
+    var schedules = DB.DebtSchedule.generate(debt);
+    // Assign IDs
+    schedules.forEach(function(s, i) {
+      s.schedule_id = _newSchedId(debt.debt_id, i+1);
+    });
+    DB.DebtSchedule.saveMany(schedules);
+
+    // If admin fee, create ledger entry
+    if (debt.admin_fee > 0) {
+      var acctObj = DB.Accounts.byId(debt.account_id);
+      var adminTxnId = Utils.newTxnId(debt.start_date);
+      DB.Transactions.save({
+        txn_id:             adminTxnId,
+        txn_date:           debt.start_date,
+        entry_date:         Utils.today(),
+        entity_id:          debt.entity_id,
+        bu_id:              debt.bu_id,
+        activity_id:        debt.activity_id || null,
+        account_id:         debt.account_id,
+        counter_account_id: null,
+        coa_code:           '542',
+        type_id:            'TXN-02',
+        cp_id:              debt.cp_id || null,
+        amount:             debt.admin_fee,
+        direction:          'Debit',
+        description:        'Admin Fee — ' + debt.description,
+        reference_id:       debt.debt_id,
+        status:             'Posted',
+        void_reason:        null,
+        created_by:         'User',
+        period:             Utils.toPeriod(debt.start_date)
+      });
+    }
+
+    Utils.toast('Fasilitas berhasil disimpan — ' + schedules.length + ' jadwal angsuran di-generate');
+    showDetail(debt.debt_id);
+  }
+  function _renderDetail() {
+    var body  = document.getElementById('page-body');
+    var debt  = DB.DebtRegister.byId(_selectedDebtId);
+    if (!debt) { Utils.toast('Fasilitas tidak ditemukan', 'error'); showRegister(); return; }
+
+    var acct  = DB.Accounts.byId(debt.account_id);
+    var cp    = debt.cp_id ? DB.Counterparties.byId(debt.cp_id) : null;
+    var ent   = DB.Entities.byId(debt.entity_id);
+    var bu    = DB.BU.byId ? DB.BU.all().find(function(b){ return b.bu_id === debt.bu_id; }) : null;
+    var schedules = DB.DebtSchedule.byDebt(debt.debt_id)
+      .sort(function(a,b){ return a.installment_no - b.installment_no; });
+    var payments  = DB.DebtPayments.byDebt(debt.debt_id)
+      .sort(function(a,b){ return b.payment_date.localeCompare(a.payment_date); });
+
+    // Recalc on open
+    DB.DebtRegister.recalcOutstanding(debt.debt_id);
+    debt = DB.DebtRegister.byId(_selectedDebtId); // refresh
+
+    var totalPaid    = payments.reduce(function(s,p){ return s+(p.total_paid||0); }, 0);
+    var totalInterest= payments.reduce(function(s,p){ return s+(p.allocated_interest||0); }, 0);
+    var paidCount    = schedules.filter(function(s){ return s.status==='Paid'; }).length;
+    var overdueCount = schedules.filter(function(s){ return s.status==='Overdue' ||
+      (s.status==='Scheduled' && s.due_date < Utils.today()); }).length;
+
+    body.innerHTML =
+      '<div class="debt-page">' +
+
+      // Breadcrumb
+      '<div class="debt-breadcrumb">' +
+        '<button class="btn btn-ghost btn-sm" onclick="DebtModule.render()">&#8592; Dashboard</button>' +
+        '<span class="text-muted">/</span>' +
+        '<button class="btn btn-ghost btn-sm" onclick="DebtModule.showRegister()">Register</button>' +
+        '<span class="text-muted">/</span>' +
+        '<span class="text-sm">' + debt.description + '</span>' +
+      '</div>' +
+
+      // ── Header Card ───────────────────────────────────────
+      '<div class="debt-detail-header">' +
+
+        '<div class="debt-detail-top">' +
+          '<div>' +
+            '<div class="debt-detail-title">' + debt.description + '</div>' +
+            '<div class="debt-detail-meta">' +
+              (ent ? ent.entity_name : '') +
+              (bu  ? ' · ' + bu.bu_name : '') +
+              (acct ? ' · ' + acct.account_name : '') +
+              (cp   ? ' · ' + cp.cp_name : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="debt-detail-actions">' +
+            (debt.status !== 'Settled'
+              ? '<button class="btn btn-primary" id="btn-catat-bayar">+ Catat Pembayaran</button>'
+              : '') +
+            '<button class="btn btn-ghost btn-sm" id="btn-hapus-debt">&#128465; Hapus</button>' +
+          '</div>' +
+        '</div>' +
+
+        // KPI Row
+        '<div class="debt-detail-kpi">' +
+          _detailKPI('Outstanding', Utils.formatIDR(debt.outstanding_principal || 0), 'text-red') +
+          (debt.credit_limit
+            ? _detailKPI('Credit Limit', Utils.formatIDR(debt.credit_limit), '') +
+              _detailKPI('Available', Utils.formatIDR(debt.available_credit || 0), 'text-green')
+            : '') +
+          _detailKPI('Cicilan/Bulan', Utils.formatIDR(debt.monthly_installment || 0), '') +
+          _detailKPI('Sisa Angsuran', (debt.remaining_installments || 0) + ' dari ' + (debt.tenor_months || '?'), '') +
+          _detailKPI('Total Dibayar', Utils.formatIDR(totalPaid), 'text-green') +
+          _detailKPI('Total Bunga', Utils.formatIDR(totalInterest), 'text-red') +
+        '</div>' +
+
+        // Info Row
+        '<div class="debt-detail-info">' +
+          '<span>&#9651; Rate: <strong>' + (debt.interest_rate || 0) + '%</strong>/tahun</span>' +
+          '<span>&#9632; Billing: <strong>' + (debt.billing_method || '—') + '</strong></span>' +
+          '<span>&#9650; Next Due: <strong>' + (debt.next_due_date ? Utils.formatDate(debt.next_due_date) : '—') + '</strong></span>' +
+          '<span>' + _debtStatusBadge(debt.status) + '</span>' +
+          (overdueCount > 0
+            ? '<span class="badge badge-red">&#9888; ' + overdueCount + ' angsuran overdue</span>'
+            : '<span class="badge badge-green">&#10003; ' + paidCount + '/' + schedules.length + ' lunas</span>') +
+        '</div>' +
+
+      '</div>' + // debt-detail-header
+
+      // ── Tabs ─────────────────────────────────────────────
+      '<div class="debt-tabs">' +
+        '<button class="debt-tab active" id="tab-schedule" data-tab="schedule">Jadwal Angsuran (' + schedules.length + ')</button>' +
+        '<button class="debt-tab" id="tab-payments" data-tab="payments">History Pembayaran (' + payments.length + ')</button>' +
+        '<button class="debt-tab" id="tab-info" data-tab="info">Info Lengkap</button>' +
+      '</div>' +
+
+      // ── Tab: Jadwal Angsuran ──────────────────────────────
+      '<div id="tab-content-schedule" class="debt-tab-content">' +
+        (schedules.length === 0
+          ? '<div class="debt-empty">Belum ada jadwal angsuran. Kemungkinan fasilitas revolving tanpa jadwal tetap.</div>'
+          : '<div style="overflow-x:auto"><table class="table debt-table">' +
+              '<thead><tr>' +
+                '<th>#</th><th>Jatuh Tempo</th>' +
+                '<th class="text-right">Pokok</th><th class="text-right">Bunga</th>' +
+                '<th class="text-right">Admin/Denda</th><th class="text-right">Total</th>' +
+                '<th class="text-right">Sisa Setelah</th>' +
+                '<th>Status</th><th>Tgl Bayar</th>' +
+              '</tr></thead>' +
+              '<tbody>' +
+              schedules.map(function(s) {
+                var isOverdue = s.status === 'Scheduled' && s.due_date < Utils.today();
+                var rowCls   = isOverdue ? 'debt-row-overdue' : s.status === 'Paid' ? 'debt-row-paid' : '';
+                var status   = isOverdue ? 'Overdue' : s.status;
+                return '<tr class="' + rowCls + '">' +
+                  '<td class="text-sm text-muted">' + s.installment_no + '</td>' +
+                  '<td class="text-sm">' + Utils.formatDate(s.due_date) + '</td>' +
+                  '<td class="text-right mono text-sm">' + Utils.formatIDR(s.principal || 0) + '</td>' +
+                  '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(s.interest || 0) + '</td>' +
+                  '<td class="text-right mono text-sm text-yellow">' + Utils.formatIDR((s.admin_fee||0)+(s.penalty_fee||0)) + '</td>' +
+                  '<td class="text-right mono text-sm font-medium">' + Utils.formatIDR(s.total_installment || 0) + '</td>' +
+                  '<td class="text-right mono text-sm text-muted">' + Utils.formatIDR(s.outstanding_after || 0) + '</td>' +
+                  '<td>' + _schedStatusBadge(status) + '</td>' +
+                  '<td class="text-sm text-muted">' + (s.payment_date ? Utils.formatDate(s.payment_date) : '—') + '</td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody>' +
+              '<tfoot><tr>' +
+                '<td colspan="2" class="text-muted text-sm">Total</td>' +
+                '<td class="text-right mono text-sm">' + Utils.formatIDR(schedules.reduce(function(s,x){return s+(x.principal||0);},0)) + '</td>' +
+                '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(schedules.reduce(function(s,x){return s+(x.interest||0);},0)) + '</td>' +
+                '<td class="text-right mono text-sm">' + Utils.formatIDR(schedules.reduce(function(s,x){return s+(x.admin_fee||0)+(x.penalty_fee||0);},0)) + '</td>' +
+                '<td class="text-right mono text-sm">' + Utils.formatIDR(schedules.reduce(function(s,x){return s+(x.total_installment||0);},0)) + '</td>' +
+                '<td colspan="3"></td>' +
+              '</tr></tfoot>' +
+            '</table></div>'
+        ) +
+      '</div>' +
+
+      // ── Tab: History Pembayaran ───────────────────────────
+      '<div id="tab-content-payments" class="debt-tab-content" style="display:none">' +
+        (payments.length === 0
+          ? '<div class="debt-empty">Belum ada pembayaran tercatat.</div>'
+          : '<div style="overflow-x:auto"><table class="table debt-table">' +
+              '<thead><tr>' +
+                '<th>ID</th><th>Tanggal</th><th class="text-right">Total Bayar</th>' +
+                '<th class="text-right">Pokok</th><th class="text-right">Bunga</th>' +
+                '<th class="text-right">Admin/Denda</th>' +
+                '<th class="text-right">Saldo Setelah</th><th>Rekening</th>' +
+              '</tr></thead>' +
+              '<tbody>' +
+              payments.map(function(p) {
+                var acctP = DB.Accounts.byId(p.account_id);
+                return '<tr>' +
+                  '<td class="mono text-sm text-muted">' + p.dpmt_id + '</td>' +
+                  '<td class="text-sm">' + Utils.formatDate(p.payment_date) + '</td>' +
+                  '<td class="text-right mono text-sm font-medium">' + Utils.formatIDR(p.total_paid||0) + '</td>' +
+                  '<td class="text-right mono text-sm">' + Utils.formatIDR(p.allocated_principal||0) + '</td>' +
+                  '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(p.allocated_interest||0) + '</td>' +
+                  '<td class="text-right mono text-sm text-yellow">' + Utils.formatIDR((p.allocated_admin_fee||0)+(p.allocated_penalty||0)) + '</td>' +
+                  '<td class="text-right mono text-sm text-muted">' + Utils.formatIDR(p.outstanding_after||0) + '</td>' +
+                  '<td class="text-sm">' + (acctP ? acctP.account_name : '—') + '</td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody>' +
+            '</table></div>'
+        ) +
+      '</div>' +
+
+      // ── Tab: Info Lengkap ─────────────────────────────────
+      '<div id="tab-content-info" class="debt-tab-content" style="display:none">' +
+        '<table class="detail-table" style="margin-top:.5rem">' +
+          _infoRow('ID', debt.debt_id) +
+          _infoRow('Entity', ent ? ent.entity_name : debt.entity_id) +
+          _infoRow('Business Unit', bu ? bu.bu_name : debt.bu_id) +
+          _infoRow('Financial Account', acct ? acct.account_name : debt.account_id) +
+          _infoRow('Kreditur', cp ? cp.cp_name : '—') +
+          _infoRow('Kategori', debt.debt_category) +
+          _infoRow('Tipe', debt.debt_type || '—') +
+          _infoRow('Referensi', debt.reference_no || '—') +
+          _infoRow('Jumlah Awal', Utils.formatIDR(debt.original_amount||0)) +
+          _infoRow('Outstanding', Utils.formatIDR(debt.outstanding_principal||0)) +
+          _infoRow('Credit Limit', debt.credit_limit ? Utils.formatIDR(debt.credit_limit) : '—') +
+          _infoRow('Available Credit', debt.available_credit != null ? Utils.formatIDR(debt.available_credit) : '—') +
+          _infoRow('Credit Limit Type', debt.credit_limit_type || '—') +
+          _infoRow('Suku Bunga', (debt.interest_rate||0) + '% per tahun') +
+          _infoRow('Tipe Bunga', debt.interest_type || '—') +
+          _infoRow('Billing Method', debt.billing_method || '—') +
+          _infoRow('Admin Fee', Utils.formatIDR(debt.admin_fee||0)) +
+          _infoRow('Cicilan/Bulan', Utils.formatIDR(debt.monthly_installment||0)) +
+          _infoRow('Tenor', (debt.tenor_months||'—') + ' bulan') +
+          _infoRow('Sisa Angsuran', debt.remaining_installments||'—') +
+          _infoRow('Tanggal Mulai', Utils.formatDate(debt.start_date)) +
+          _infoRow('Jatuh Tempo Berikutnya', debt.next_due_date ? Utils.formatDate(debt.next_due_date) : '—') +
+          _infoRow('Opening Balance', debt.is_opening_balance ? 'Ya (' + Utils.formatDate(debt.opening_balance_date) + ')' : 'Tidak') +
+          _infoRow('Status', _debtStatusBadge(debt.status)) +
+          _infoRow('Dibuat', Utils.formatDate(debt.created_at)) +
+        '</table>' +
+      '</div>' +
+
+      '</div>'; // debt-page
+
+    // Bind buttons via JS (avoid onclick string escaping)
+    var btnBayar = document.getElementById('btn-catat-bayar');
+    if (btnBayar) btnBayar.onclick = function() { showPayment(_selectedDebtId); };
+    var btnHapus = document.getElementById('btn-hapus-debt');
+    if (btnHapus) btnHapus.onclick = function() { _deleteDebt(_selectedDebtId); };
+    // Bind tabs
+    body.querySelectorAll('.debt-tab[data-tab]').forEach(function(btn) {
+      btn.onclick = function() { _switchTab(btn.getAttribute('data-tab')); };
+    });
+  }
+
+  function _detailKPI(label, value, cls) {
+    return '<div class="debt-detail-kpi-item">' +
+      '<div class="debt-detail-kpi-label">' + label + '</div>' +
+      '<div class="debt-detail-kpi-val ' + cls + '">' + value + '</div>' +
+    '</div>';
+  }
+
+  function _infoRow(label, value) {
+    return '<tr><td class="detail-label">' + label + '</td><td class="detail-value">' + value + '</td></tr>';
+  }
+
+  function _switchTab(tab) {
+    ['schedule','payments','info'].forEach(function(t) {
+      var btn = document.getElementById('tab-' + t);
+      var content = document.getElementById('tab-content-' + t);
+      if (btn) btn.classList.toggle('active', t === tab);
+      if (content) content.style.display = t === tab ? 'block' : 'none';
+    });
+  }
+  function _renderPayment() {
+    var body  = document.getElementById('page-body');
+    var debt  = DB.DebtRegister.byId(_selectedDebtId);
+    if (!debt) { Utils.toast('Fasilitas tidak ditemukan', 'error'); showRegister(); return; }
+
+    var acct      = DB.Accounts.byId(debt.account_id);
+    var cashAccts = DB.Accounts.all().filter(function(a){
+      return ['Bank','E-Wallet','Platform'].includes(a.account_type) && a.status === 'Active';
+    });
+
+    // Find next unpaid schedule
+    var schedules  = DB.DebtSchedule.byDebt(debt.debt_id)
+      .filter(function(s){ return s.status !== 'Paid'; })
+      .sort(function(a,b){ return a.installment_no - b.installment_no; });
+    var nextSched  = schedules[0] || null;
+
+    // Default allocation from schedule
+    var defPrincipal = nextSched ? (nextSched.principal || 0) : 0;
+    var defInterest  = nextSched ? (nextSched.interest  || 0) : 0;
+    var defAdmin     = nextSched ? (nextSched.admin_fee || 0) : 0;
+    var defTotal     = defPrincipal + defInterest + defAdmin;
+
+    // COA for ledger preview
+    var liabCOA = acct ? acct.coa_code : '203';
+    var liabCOAName = DB.COA.byCode(liabCOA) ? liabCOA + ' ' + DB.COA.byCode(liabCOA).coa_name : liabCOA;
+
+    body.innerHTML =
+      '<div class="debt-page">' +
+
+      // Breadcrumb
+      '<div class="debt-breadcrumb">' +
+        '<button class="btn btn-ghost btn-sm" id="btn-back-detail">&#8592; Detail</button>' +
+        '<span class="text-muted">/</span>' +
+        '<span class="text-sm">Catat Pembayaran — ' + debt.description + '</span>' +
+      '</div>' +
+
+      // Debt summary bar
+      '<div class="debt-payment-summary">' +
+        '<div class="debt-pmt-info">' +
+          '<div class="debt-pmt-info-label">Outstanding</div>' +
+          '<div class="debt-pmt-info-val text-red">' + Utils.formatIDR(debt.outstanding_principal || 0) + '</div>' +
+        '</div>' +
+        (debt.credit_limit
+          ? '<div class="debt-pmt-info">' +
+              '<div class="debt-pmt-info-label">Available Credit</div>' +
+              '<div class="debt-pmt-info-val text-green">' + Utils.formatIDR(debt.available_credit || 0) + '</div>' +
+            '</div>'
+          : '') +
+        '<div class="debt-pmt-info">' +
+          '<div class="debt-pmt-info-label">Angsuran Berikutnya</div>' +
+          '<div class="debt-pmt-info-val">' +
+            (nextSched
+              ? 'ke-' + nextSched.installment_no + ' — ' + Utils.formatDate(nextSched.due_date)
+              : 'Tidak ada jadwal') +
+          '</div>' +
+        '</div>' +
+        '<div class="debt-pmt-info">' +
+          '<div class="debt-pmt-info-label">Cicilan Terjadwal</div>' +
+          '<div class="debt-pmt-info-val">' + Utils.formatIDR(defTotal) + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div class="form-card">' +
+
+        // Section 1: Detail Pembayaran
+        '<div class="form-section">' +
+          '<div class="form-section-title">1 — Detail Pembayaran</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Tanggal Pembayaran <span class="required">*</span></label>' +
+              '<input class="form-input" type="date" id="pmt-date" value="' + Utils.today() + '" onchange="DebtModule.onPmtChange()">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Rekening Sumber <span class="required">*</span></label>' +
+              '<select class="form-input" id="pmt-account">' +
+                '<option value="">— Pilih Rekening —</option>' +
+                cashAccts.map(function(a){
+                  return '<option value="' + a.account_id + '" data-coa="' + a.coa_code + '">' + a.account_name + '</option>';
+                }).join('') +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Angsuran ke-</label>' +
+              '<select class="form-input" id="pmt-sched-id" onchange="DebtModule.onSchedChange()">' +
+                '<option value="">— Auto (berikutnya) —</option>' +
+                schedules.map(function(s){
+                  var lbl = '#' + s.installment_no + ' — ' + Utils.formatDate(s.due_date) + ' — ' + Utils.formatIDR(s.total_installment);
+                  return '<option value="' + s.schedule_id + '">' + lbl + '</option>';
+                }).join('') +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Total Dibayar (Rp) <span class="required">*</span></label>' +
+            '<input class="form-input" type="number" id="pmt-total" value="' + defTotal + '" oninput="DebtModule.onTotalChange()" placeholder="0">' +
+            '<small class="form-hint">Total kas yang keluar dari rekening</small>' +
+          '</div>' +
+        '</div>' +
+
+        // Section 2: Alokasi Pembayaran
+        '<div class="form-section">' +
+          '<div class="form-section-title">2 — Alokasi Pembayaran</div>' +
+          '<div class="debt-allocation-box">' +
+            '<div class="debt-alloc-row">' +
+              '<label class="debt-alloc-label">Admin Fee / Denda</label>' +
+              '<input class="form-input debt-alloc-input" type="number" id="pmt-admin" value="' + defAdmin + '" oninput="DebtModule.onAllocChange()" placeholder="0">' +
+              '<span class="debt-alloc-coa text-muted">&#8594; COA 542/543</span>' +
+            '</div>' +
+            '<div class="debt-alloc-row">' +
+              '<label class="debt-alloc-label">Bunga</label>' +
+              '<input class="form-input debt-alloc-input" type="number" id="pmt-interest" value="' + defInterest + '" oninput="DebtModule.onAllocChange()" placeholder="0">' +
+              '<span class="debt-alloc-coa text-muted">&#8594; COA 541</span>' +
+            '</div>' +
+            '<div class="debt-alloc-row">' +
+              '<label class="debt-alloc-label">Pokok</label>' +
+              '<input class="form-input debt-alloc-input" type="number" id="pmt-principal" value="' + defPrincipal + '" readonly>' +
+              '<span class="debt-alloc-coa text-muted">&#8594; ' + liabCOAName + '</span>' +
+            '</div>' +
+            '<div class="debt-alloc-divider"></div>' +
+            '<div class="debt-alloc-row debt-alloc-total">' +
+              '<label class="debt-alloc-label"><strong>Total</strong></label>' +
+              '<div class="form-input debt-alloc-input debt-alloc-total-val" id="pmt-alloc-total">' + Utils.formatIDR(defTotal) + '</div>' +
+              '<div class="debt-alloc-check" id="pmt-alloc-check"></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="info-box" style="margin-top:.5rem;font-size:.76rem">' +
+            'Urutan alokasi: <strong>Admin Fee/Denda</strong> &#8594; <strong>Bunga</strong> &#8594; <strong>Pokok</strong><br>' +
+            'Pokok = Total &minus; Admin Fee &minus; Bunga (auto-hitung)' +
+          '</div>' +
+        '</div>' +
+
+        // Section 3: Ledger Preview
+        '<div class="form-section">' +
+          '<div class="form-section-title">3 — Preview Entry Akuntansi</div>' +
+          '<div id="pmt-ledger-preview">' + _buildLedgerPreview(defPrincipal, defInterest, defAdmin, defTotal, liabCOA, '101') + '</div>' +
+        '</div>' +
+
+        // Section 4: Available Credit Update (if revolving)
+        (debt.credit_limit
+          ? '<div class="form-section" id="pmt-credit-section">' +
+              '<div class="form-section-title">4 — Update Available Credit</div>' +
+              '<div class="debt-credit-update">' +
+                '<div class="debt-credit-row">' +
+                  '<span>Available Credit Sebelum</span>' +
+                  '<span class="mono">' + Utils.formatIDR(debt.available_credit || 0) + '</span>' +
+                '</div>' +
+                '<div class="debt-credit-row">' +
+                  '<span>+ Kenaikan' +
+                    (debt.credit_limit_type === 'Full_Revolving'
+                      ? ' (Full Revolving — sesuai total bayar)'
+                      : ' (Principal Only — sesuai pokok)') +
+                  '</span>' +
+                  '<span class="mono text-green" id="pmt-credit-delta">+ ' + Utils.formatIDR(
+                    debt.credit_limit_type === 'Full_Revolving' ? defTotal : defPrincipal
+                  ) + '</span>' +
+                '</div>' +
+                '<div class="debt-credit-row debt-credit-after">' +
+                  '<span><strong>Available Credit Setelah</strong></span>' +
+                  '<span class="mono text-green" id="pmt-credit-after"><strong>' + Utils.formatIDR(
+                    Math.min(debt.credit_limit,
+                      (debt.available_credit || 0) +
+                      (debt.credit_limit_type === 'Full_Revolving' ? defTotal : defPrincipal)
+                    )
+                  ) + '</strong></span>' +
+                '</div>' +
+              '</div>' +
+            '</div>'
+          : '') +
+
+        '<div id="pmt-errors" class="error-box" style="display:none"></div>' +
+
+        '<div class="form-actions-bar">' +
+          '<button class="btn btn-ghost" id="btn-cancel-pmt">Batal</button>' +
+          '<button class="btn btn-primary" id="btn-post-pmt">&#10003; Post Pembayaran</button>' +
+        '</div>' +
+
+      '</div>' + // form-card
+      '</div>';   // debt-page
+
+    // Bind events
+    document.getElementById('btn-back-detail').onclick   = function() { showDetail(_selectedDebtId); };
+    document.getElementById('btn-cancel-pmt').onclick    = function() { showDetail(_selectedDebtId); };
+    document.getElementById('btn-post-pmt').onclick      = function() { savePayment(); };
+    document.getElementById('pmt-account').onchange      = function() { _updateLedgerPreview(); };
+  }
+
+  // ── Payment helper: build ledger preview HTML ─────────────
+  function _buildLedgerPreview(principal, interest, admin, total, liabCOA, cashCOA) {
+    var entries = [];
+    var liabName = DB.COA.byCode(liabCOA) ? DB.COA.byCode(liabCOA).coa_name : 'Liabilitas';
+    var cashName = DB.COA.byCode(cashCOA) ? DB.COA.byCode(cashCOA).coa_name : 'Kas & Bank';
+
+    if (admin > 0)     entries.push({ dir:'Debit',  coa:'542', name:'Beban Administrasi Bank', amt: admin });
+    if (interest > 0)  entries.push({ dir:'Debit',  coa:'541', name:'Beban Bunga Pinjaman',    amt: interest });
+    if (principal > 0) entries.push({ dir:'Debit',  coa: liabCOA, name: liabName,              amt: principal });
+    if (total > 0)     entries.push({ dir:'Credit', coa: cashCOA, name: cashName,              amt: total });
+
+    if (entries.length === 0) return '<div class="text-muted text-sm">Isi alokasi untuk melihat preview entry</div>';
+
+    return '<table class="table debt-table">' +
+      '<thead><tr><th>COA</th><th>Nama</th><th>Debit</th><th>Credit</th></tr></thead>' +
+      '<tbody>' +
+      entries.map(function(e) {
+        return '<tr>' +
+          '<td class="mono text-sm text-muted">' + e.coa + '</td>' +
+          '<td class="text-sm">' + e.name + '</td>' +
+          '<td class="text-right mono text-sm">' + (e.dir==='Debit'  ? Utils.formatIDR(e.amt) : '—') + '</td>' +
+          '<td class="text-right mono text-sm">' + (e.dir==='Credit' ? Utils.formatIDR(e.amt) : '—') + '</td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody>' +
+    '</table>';
+  }
+
+  function _updateLedgerPreview() {
+    var total     = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
+    var admin     = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
+    var interest  = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
+    var principal = Math.max(0, total - admin - interest);
+    var acctSel   = document.getElementById('pmt-account');
+    var cashAcctId= acctSel ? acctSel.value : '';
+    var cashAcct  = cashAcctId ? DB.Accounts.byId(cashAcctId) : null;
+    var cashCOA   = cashAcct ? cashAcct.coa_code : '101';
+    var debt      = DB.DebtRegister.byId(_selectedDebtId);
+    var liabAcct  = debt ? DB.Accounts.byId(debt.account_id) : null;
+    var liabCOA   = liabAcct ? liabAcct.coa_code : '203';
+    var preview   = document.getElementById('pmt-ledger-preview');
+    if (preview) preview.innerHTML = _buildLedgerPreview(principal, interest, admin, total, liabCOA, cashCOA);
+  }
+
+  // ── Payment form event handlers ───────────────────────────
+  function onPmtChange()    { _updateLedgerPreview(); }
+
+  function onSchedChange() {
+    var schedId  = (document.getElementById('pmt-sched-id') || {}).value;
+    if (!schedId) return;
+    var sched    = DB.DebtSchedule.byId(schedId);
+    if (!sched)  return;
+    var total    = (sched.principal||0) + (sched.interest||0) + (sched.admin_fee||0) + (sched.penalty_fee||0);
+    var totalEl  = document.getElementById('pmt-total');
+    var adminEl  = document.getElementById('pmt-admin');
+    var intEl    = document.getElementById('pmt-interest');
+    var princEl  = document.getElementById('pmt-principal');
+    if (totalEl)  totalEl.value   = total;
+    if (adminEl)  adminEl.value   = (sched.admin_fee||0) + (sched.penalty_fee||0);
+    if (intEl)    intEl.value     = sched.interest || 0;
+    if (princEl)  princEl.value   = sched.principal || 0;
+    _syncAlloc();
+    _updateLedgerPreview();
+  }
+
+  function onTotalChange() {
+    _syncAlloc();
+    _updateLedgerPreview();
+    _updateCreditPreview();
+  }
+
+  function onAllocChange() {
+    _syncAlloc();
+    _updateLedgerPreview();
+    _updateCreditPreview();
+  }
+
+  function _syncAlloc() {
+    var total    = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
+    var admin    = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
+    var interest = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
+    var principal= Math.max(0, total - admin - interest);
+    var princEl  = document.getElementById('pmt-principal');
+    var totEl    = document.getElementById('pmt-alloc-total');
+    var chkEl    = document.getElementById('pmt-alloc-check');
+    if (princEl)  princEl.value = principal;
+    var allocSum = admin + interest + principal;
+    if (totEl)    totEl.textContent = Utils.formatIDR(allocSum);
+    if (chkEl) {
+      var balanced = Math.abs(allocSum - total) < 1;
+      chkEl.innerHTML = balanced
+        ? '<span class="text-green">&#10003; Balanced</span>'
+        : '<span class="text-red">&#9888; Selisih ' + Utils.formatIDR(Math.abs(allocSum-total)) + '</span>';
+    }
+  }
+
+  function _updateCreditPreview() {
+    var debt     = DB.DebtRegister.byId(_selectedDebtId);
+    if (!debt || !debt.credit_limit) return;
+    var total    = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
+    var admin    = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
+    var interest = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
+    var principal= Math.max(0, total - admin - interest);
+    var delta    = debt.credit_limit_type === 'Full_Revolving' ? total : principal;
+    var after    = Math.min(debt.credit_limit, (debt.available_credit || 0) + delta);
+    var deltaEl  = document.getElementById('pmt-credit-delta');
+    var afterEl  = document.getElementById('pmt-credit-after');
+    if (deltaEl) deltaEl.textContent = '+ ' + Utils.formatIDR(delta);
+    if (afterEl) afterEl.innerHTML   = '<strong>' + Utils.formatIDR(after) + '</strong>';
+  }
+
+  // ── Save Payment ──────────────────────────────────────────
+  function savePayment() {
+    var debt     = DB.DebtRegister.byId(_selectedDebtId);
+    if (!debt)   return;
+
+    var date     = (document.getElementById('pmt-date')     || {}).value || '';
+    var accountId= (document.getElementById('pmt-account')  || {}).value || '';
+    var schedId  = (document.getElementById('pmt-sched-id') || {}).value || '';
+    var total    = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
+    var admin    = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
+    var interest = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
+    var principal= Math.max(0, total - admin - interest);
+    var errBox   = document.getElementById('pmt-errors');
+
+    // Validation
+    var errors = [];
+    if (!date)      errors.push('Tanggal wajib diisi');
+    if (!accountId) errors.push('Rekening sumber wajib dipilih');
+    if (!total || total <= 0) errors.push('Total pembayaran harus lebih dari 0');
+    if (Math.abs((admin + interest + principal) - total) > 1) errors.push('Alokasi tidak seimbang dengan total');
+
+    if (errors.length > 0) {
+      if (errBox) { errBox.style.display = 'block'; errBox.innerHTML = '<ul>' + errors.map(function(e){ return '<li>'+e+'</li>'; }).join('') + '</ul>'; }
+      return;
+    }
+    if (errBox) errBox.style.display = 'none';
+
+    var cashAcct = DB.Accounts.byId(accountId);
+    var liabAcct = DB.Accounts.byId(debt.account_id);
+    var cashCOA  = cashAcct ? cashAcct.coa_code : '101';
+    var liabCOA  = liabAcct ? liabAcct.coa_code : '203';
+    var outBefore= debt.outstanding_principal || 0;
+    var outAfter = Math.max(0, outBefore - principal);
+
+    // ── Create ledger entries ─────────────────────────────
+    var txnIds = {};
+
+    // 1. Debit Liability (pokok berkurang)
+    if (principal > 0) {
+      var t1 = Utils.newTxnId(date);
+      DB.Transactions.save({
+        txn_id: t1, txn_date: date, entry_date: Utils.today(),
+        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
+        account_id: accountId, counter_account_id: debt.account_id,
+        coa_code: liabCOA, type_id: 'TXN-08',
+        cp_id: debt.cp_id||null, amount: principal,
+        direction: 'Debit',
+        description: 'Bayar pokok — ' + debt.description + ' (' + debt.debt_id + ')',
+        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
+        created_by: 'User', period: Utils.toPeriod(date)
+      });
+      txnIds.principal = t1;
+    }
+
+    // 2. Debit Interest (beban bunga)
+    if (interest > 0) {
+      var t2 = Utils.newTxnId(date);
+      DB.Transactions.save({
+        txn_id: t2, txn_date: date, entry_date: Utils.today(),
+        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
+        account_id: accountId, counter_account_id: null,
+        coa_code: '541', type_id: 'TXN-02',
+        cp_id: debt.cp_id||null, amount: interest,
+        direction: 'Debit',
+        description: 'Beban bunga — ' + debt.description,
+        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
+        created_by: 'User', period: Utils.toPeriod(date)
+      });
+      txnIds.interest = t2;
+    }
+
+    // 3. Debit Admin/Denda
+    if (admin > 0) {
+      var t3 = Utils.newTxnId(date);
+      DB.Transactions.save({
+        txn_id: t3, txn_date: date, entry_date: Utils.today(),
+        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
+        account_id: accountId, counter_account_id: null,
+        coa_code: '543', type_id: 'TXN-02',
+        cp_id: debt.cp_id||null, amount: admin,
+        direction: 'Debit',
+        description: 'Admin fee/denda — ' + debt.description,
+        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
+        created_by: 'User', period: Utils.toPeriod(date)
+      });
+      txnIds.admin = t3;
+    }
+
+    // 4. Credit Cash (kas keluar)
+    var t4 = Utils.newTxnId(date);
+    DB.Transactions.save({
+      txn_id: t4, txn_date: date, entry_date: Utils.today(),
+      entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
+      account_id: accountId, counter_account_id: debt.account_id,
+      coa_code: cashCOA, type_id: 'TXN-08',
+      cp_id: debt.cp_id||null, amount: total,
+      direction: 'Credit',
+      description: 'Kas keluar — bayar ' + debt.description + ' (pokok+bunga+admin)',
+      reference_id: debt.debt_id, status: 'Posted', void_reason: null,
+      created_by: 'User', period: Utils.toPeriod(date)
+    });
+    txnIds.cash = t4;
+
+    // ── Save debt payment record ─────────────────────────
+    var dpmt = {
+      dpmt_id:            _newDpmtId(),
+      debt_id:            debt.debt_id,
+      schedule_id:        schedId || (nextSched ? nextSched.schedule_id : null),
+      payment_date:       date,
+      total_paid:         total,
+      allocated_admin_fee:admin,
+      allocated_penalty:  0,
+      allocated_interest: interest,
+      allocated_principal:principal,
+      outstanding_before: outBefore,
+      outstanding_after:  outAfter,
+      txn_id_principal:   txnIds.principal || null,
+      txn_id_interest:    txnIds.interest  || null,
+      txn_id_admin:       txnIds.admin     || null,
+      txn_id_cash:        txnIds.cash,
+      account_id:         accountId,
+      notes:              null
+    };
+    DB.DebtPayments.save(dpmt);
+
+    // ── Mark schedule as paid ─────────────────────────────
+    var schedToMark = schedId || (schedules[0] ? schedules[0].schedule_id : null);
+    if (schedToMark) {
+      DB.DebtSchedule.markPaid(schedToMark, date, total, txnIds.cash);
+    }
+
+    // ── Update debt register ──────────────────────────────
+    debt.outstanding_principal = outAfter;
+    if (debt.credit_limit) {
+      var delta = debt.credit_limit_type === 'Full_Revolving' ? total : principal;
+      debt.available_credit = Math.min(debt.credit_limit, (debt.available_credit||0) + delta);
+    }
+    // Update remaining installments
+    if (debt.remaining_installments > 0) debt.remaining_installments--;
+    if (outAfter <= 0) debt.status = 'Settled';
+    DB.DebtRegister.recalcOutstanding(debt.debt_id);
+
+    Utils.toast('Pembayaran berhasil diposting — ' + (Object.keys(txnIds).length) + ' ledger entry dibuat');
+    showDetail(_selectedDebtId);
+  }
 
   return {
     render, showRegister, showDetail, showNew, showPayment,
-    applyFilter, clearFilters, exportRegister
+    applyFilter, clearFilters, exportRegister,
+    onEntityChange, onCategoryChange, onAmountChange,
+    onRateChange, onTenorChange, onOpeningChange,
+    previewSchedule, saveNew,
+    _switchTab, _deleteDebt,
+    onPmtChange, onSchedChange, onTotalChange, onAllocChange,
+    savePayment
   };
 
 })();
@@ -8471,15 +9954,17 @@ const Reports = (() => {
   let _activeReport = 'pl';
 
   const REPORT_MENU = [
-    { id: 'pl',         label: 'Laba Rugi (P&L)',         icon: '≡' },
-    { id: 'pl_compare', label: 'P&L Komparatif',          icon: '⇌' },
-    { id: 'bs',         label: 'Neraca (Balance Sheet)',   icon: '⊟' },
-    { id: 'cf',         label: 'Arus Kas (Cash Flow)',     icon: '⇅' },
-    { id: 'ar_aging',   label: 'Aging Piutang',            icon: '↓' },
-    { id: 'ap_aging',   label: 'Aging Utang',              icon: '↑' },
-    { id: 'bu_profit',  label: 'Profitabilitas BU',        icon: '◈' },
-    { id: 'act_profit', label: 'Profitabilitas Activity',  icon: '⬡' },
-    { id: 'treasury',   label: 'Ringkasan Treasury',       icon: '⟳' }
+    { id: 'pl',           label: 'Laba Rugi (P&L)',         icon: '≡' },
+    { id: 'pl_compare',   label: 'P&L Komparatif',          icon: '⇌' },
+    { id: 'bs',           label: 'Neraca (Balance Sheet)',   icon: '⊟' },
+    { id: 'cf',           label: 'Arus Kas (Cash Flow)',     icon: '⇅' },
+    { id: 'ar_aging',     label: 'Aging Piutang',            icon: '↓' },
+    { id: 'ap_aging',     label: 'Aging Utang',              icon: '↑' },
+    { id: 'bu_profit',    label: 'Profitabilitas BU',        icon: '◈' },
+    { id: 'act_profit',   label: 'Profitabilitas Activity',  icon: '⬡' },
+    { id: 'treasury',     label: 'Ringkasan Treasury',       icon: '⟳' },
+    { id: 'debt_outstanding', label: 'Posisi Utang',         icon: '◎' },
+    { id: 'debt_projection',  label: 'Proyeksi Cicilan',     icon: '⤳' }
   ];
 
   // ── Entry Point ───────────────────────────────────────────
@@ -8522,7 +10007,9 @@ const Reports = (() => {
       case 'bu_profit': return _buildBUProfit(entity, period);
       case 'pl_compare': return _buildPLCompare(entity, period);
       case 'act_profit':return _buildActProfit(entity, period);
-      case 'treasury':  return _buildTreasurySummary(entity, period);
+      case 'treasury':          return _buildTreasurySummary(entity, period);
+      case 'debt_outstanding':  return _buildDebtOutstanding(entity);
+      case 'debt_projection':   return _buildDebtProjection(entity);
       default:          return '<div class="empty-state"><p>Laporan tidak ditemukan.</p></div>';
     }
   }
@@ -9565,9 +11052,268 @@ const Reports = (() => {
   function exportActProfit() { Utils.toast('Export Activity — gunakan filter Activity di Transaksi'); }
   function exportTreasury()  { Utils.toast('Export Treasury — gunakan Export di modul Treasury'); }
 
+  // ══════════════════════════════════════════════════════════
+  // DEBT OUTSTANDING REPORT
+  // Posisi utang per fasilitas — snapshot hari ini
+  // ══════════════════════════════════════════════════════════
+  function _buildDebtOutstanding(entity) {
+    var entityName = entity === 'ALL' ? 'Semua Entity' : (DB.Entities.byId(entity)||{entity_name:entity}).entity_name;
+    var today = Utils.today();
+
+    var debts = entity === 'ALL'
+      ? DB.DebtRegister.all()
+      : DB.DebtRegister.byEntity(entity);
+
+    var active  = debts.filter(function(d){ return ['Active','Overdue'].includes(d.status); });
+    var settled = debts.filter(function(d){ return d.status === 'Settled'; });
+
+    if (debts.length === 0) {
+      return _reportHeader('Posisi Utang', entityName + ' — per ' + Utils.formatDate(today), 'Reports.exportDebtOutstanding()') +
+        '<div class="report-body"><div class="report-empty-row">Tidak ada fasilitas utang yang tercatat.</div></div>';
+    }
+
+    // Group by category
+    var categories = ['Revolving','Installment','Supplier'];
+    var totalOutstanding = active.reduce(function(s,d){ return s+(d.outstanding_principal||0); }, 0);
+    var totalLimit       = active.reduce(function(s,d){ return s+(d.credit_limit||0); }, 0);
+    var totalAvailable   = active.reduce(function(s,d){ return s+(d.available_credit||0); }, 0);
+
+    function _debtRow(d) {
+      var acct = DB.Accounts.byId(d.account_id);
+      var cp   = d.cp_id ? DB.Counterparties.byId(d.cp_id) : null;
+      var overdue = d.next_due_date && d.next_due_date < today;
+      var pct  = d.original_amount > 0
+        ? Math.round((d.outstanding_principal||0) / d.original_amount * 100)
+        : 0;
+      return '<tr' + (overdue ? ' class="debt-row-overdue"' : '') + '>' +
+        '<td class="mono text-sm text-muted">' + d.debt_id + '</td>' +
+        '<td>' +
+          '<div class="text-sm">' + d.description + '</div>' +
+          '<div class="text-xs text-muted">' + (acct?acct.account_name:'') + (cp?' · '+cp.cp_name:'') + '</div>' +
+        '</td>' +
+        '<td class="text-sm">' + (d.debt_type||'—') + '</td>' +
+        '<td class="text-right mono text-sm">' + Utils.formatIDR(d.original_amount||0) + '</td>' +
+        '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(d.outstanding_principal||0) + '</td>' +
+        '<td class="text-right mono text-sm text-muted">' + (d.credit_limit?Utils.formatIDR(d.credit_limit):'—') + '</td>' +
+        '<td class="text-right mono text-sm text-green">' + (d.available_credit!=null?Utils.formatIDR(d.available_credit):'—') + '</td>' +
+        '<td class="text-sm">' + (d.interest_rate?(d.interest_rate+'%'):'—') + '</td>' +
+        '<td class="text-sm ' + (overdue?'text-red':'') + '">' + (d.next_due_date?Utils.formatDate(d.next_due_date):'—') + '</td>' +
+        '<td>' +
+          '<div class="debt-prog-bar-wrap">' +
+            '<div class="debt-prog-bar" style="width:'+pct+'%"></div>' +
+          '</div>' +
+          '<div class="text-xs text-muted text-center">' + pct + '%</div>' +
+        '</td>' +
+      '</tr>';
+    }
+
+    var rows = '';
+    categories.forEach(function(cat) {
+      var group = active.filter(function(d){ return d.debt_category === cat; });
+      if (group.length === 0) return;
+      var groupTotal = group.reduce(function(s,d){ return s+(d.outstanding_principal||0); }, 0);
+      rows += '<tr class="compare-subhead"><td colspan="10">' + cat + ' — ' + Utils.formatIDR(groupTotal) + '</td></tr>';
+      rows += group.map(_debtRow).join('');
+    });
+
+    return _reportHeader('Posisi Utang', entityName + ' — per ' + Utils.formatDate(today), 'Reports.exportDebtOutstanding()') +
+      '<div class="report-body">' +
+
+      // Summary Cards
+      '<div class="debt-report-summary">' +
+        '<div class="debt-rep-card">' +
+          '<div class="debt-rep-label">Total Outstanding</div>' +
+          '<div class="debt-rep-val text-red">' + Utils.formatIDR(totalOutstanding) + '</div>' +
+        '</div>' +
+        '<div class="debt-rep-card">' +
+          '<div class="debt-rep-label">Total Limit</div>' +
+          '<div class="debt-rep-val">' + Utils.formatIDR(totalLimit) + '</div>' +
+        '</div>' +
+        '<div class="debt-rep-card">' +
+          '<div class="debt-rep-label">Total Available</div>' +
+          '<div class="debt-rep-val text-green">' + Utils.formatIDR(totalAvailable) + '</div>' +
+        '</div>' +
+        '<div class="debt-rep-card">' +
+          '<div class="debt-rep-label">Fasilitas Aktif</div>' +
+          '<div class="debt-rep-val">' + active.length + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Table
+      '<div style="overflow-x:auto;margin-top:.75rem">' +
+      '<table class="table">' +
+        '<thead><tr>' +
+          '<th>ID</th><th>Fasilitas</th><th>Tipe</th>' +
+          '<th class="text-right">Awal</th>' +
+          '<th class="text-right">Outstanding</th>' +
+          '<th class="text-right">Limit</th>' +
+          '<th class="text-right">Available</th>' +
+          '<th>Rate</th><th>Jatuh Tempo</th>' +
+          '<th style="min-width:80px">Progres Lunas</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '<tfoot><tr>' +
+          '<td colspan="4" class="text-muted text-sm">' + active.length + ' fasilitas aktif</td>' +
+          '<td class="text-right mono text-sm text-red"><strong>' + Utils.formatIDR(totalOutstanding) + '</strong></td>' +
+          '<td class="text-right mono text-sm"><strong>' + Utils.formatIDR(totalLimit) + '</strong></td>' +
+          '<td class="text-right mono text-sm text-green"><strong>' + Utils.formatIDR(totalAvailable) + '</strong></td>' +
+          '<td colspan="3"></td>' +
+        '</tr></tfoot>' +
+      '</table>' +
+      '</div>' +
+
+      (settled.length > 0
+        ? '<div class="text-muted text-sm" style="margin-top:.75rem">' +
+            settled.length + ' fasilitas sudah lunas (tersembunyi)' +
+          '</div>'
+        : '') +
+
+      '</div>';
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // DEBT PROJECTION REPORT
+  // Proyeksi kewajiban cicilan 3 bulan ke depan
+  // ══════════════════════════════════════════════════════════
+  function _buildDebtProjection(entity) {
+    var entityName = entity === 'ALL' ? 'Semua Entity' : (DB.Entities.byId(entity)||{entity_name:entity}).entity_name;
+    var today = new Date();
+
+    // Build 3-month buckets
+    var buckets = [];
+    for (var m = 0; m < 3; m++) {
+      var d = new Date(today.getFullYear(), today.getMonth() + m, 1);
+      var period = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      buckets.push({ period: period, label: Utils.periodLabel(period), schedules: [], total: 0 });
+    }
+
+    // Get all scheduled (unpaid) installments
+    var allSchedules = DB.DebtSchedule.all().filter(function(s){
+      return s.status === 'Scheduled' || s.status === 'Overdue';
+    });
+
+    allSchedules.forEach(function(s) {
+      if (!s.due_date) return;
+      var debt = DB.DebtRegister.byId(s.debt_id);
+      if (!debt) return;
+      if (entity !== 'ALL' && debt.entity_id !== entity) return;
+      if (!['Active','Overdue'].includes(debt.status)) return;
+
+      var sPeriod = s.due_date.substring(0, 7);
+      var bucket  = buckets.find(function(b){ return b.period === sPeriod; });
+      if (bucket) {
+        bucket.schedules.push({ schedule: s, debt: debt });
+        bucket.total += (s.total_installment || 0);
+      }
+    });
+
+    var grandTotal = buckets.reduce(function(s,b){ return s+b.total; }, 0);
+    var maxTotal   = Math.max.apply(null, buckets.map(function(b){ return b.total; })) || 1;
+
+    return _reportHeader('Proyeksi Cicilan', entityName + ' — 3 Bulan ke Depan', 'Reports.exportDebtProjection()') +
+      '<div class="report-body">' +
+
+      // Grand total
+      '<div class="cf-method-note">' +
+        'Total kewajiban 3 bulan ke depan: <strong>' + Utils.formatIDR(grandTotal) + '</strong>' +
+      '</div>' +
+
+      // Bar chart
+      '<div class="debt-proj-bars">' +
+      buckets.map(function(b) {
+        var pct = Math.round(b.total / maxTotal * 100);
+        return '<div class="debt-proj-bar-item">' +
+          '<div class="debt-proj-bar-label">' + b.label + '</div>' +
+          '<div class="debt-proj-bar-wrap">' +
+            '<div class="debt-proj-bar-fill" style="height:' + pct + '%"></div>' +
+          '</div>' +
+          '<div class="debt-proj-bar-val">' + Utils.formatIDR(b.total) + '</div>' +
+          '<div class="debt-proj-bar-count text-muted">' + b.schedules.length + ' angsuran</div>' +
+        '</div>';
+      }).join('') +
+      '</div>' +
+
+      // Detail per bucket
+      buckets.map(function(b) {
+        if (b.schedules.length === 0) return '';
+        return '<div style="margin-top:1rem">' +
+          '<div class="report-section-head">' + b.label + ' — ' + Utils.formatIDR(b.total) + '</div>' +
+          '<div style="overflow-x:auto"><table class="table debt-table">' +
+            '<thead><tr>' +
+              '<th>Fasilitas</th><th>Angsuran ke-</th><th>Due Date</th>' +
+              '<th class="text-right">Pokok</th><th class="text-right">Bunga</th>' +
+              '<th class="text-right">Total</th><th>Status</th>' +
+            '</tr></thead>' +
+            '<tbody>' +
+            b.schedules.map(function(item) {
+              var s = item.schedule;
+              var d = item.debt;
+              var isOverdue = s.due_date < Utils.today();
+              return '<tr' + (isOverdue?' class="debt-row-overdue"':'') + '>' +
+                '<td class="text-sm">' + d.description + '</td>' +
+                '<td class="text-sm text-muted">' + s.installment_no + '</td>' +
+                '<td class="text-sm' + (isOverdue?' text-red':'') + '">' + Utils.formatDate(s.due_date) + '</td>' +
+                '<td class="text-right mono text-sm">' + Utils.formatIDR(s.principal||0) + '</td>' +
+                '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(s.interest||0) + '</td>' +
+                '<td class="text-right mono text-sm font-medium">' + Utils.formatIDR(s.total_installment||0) + '</td>' +
+                '<td>' + (isOverdue
+                  ? '<span class="badge badge-red">Overdue</span>'
+                  : '<span class="badge badge-blue">Terjadwal</span>') +
+                '</td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody>' +
+            '<tfoot><tr>' +
+              '<td colspan="3" class="text-muted text-sm">Subtotal ' + b.label + '</td>' +
+              '<td class="text-right mono text-sm">' + Utils.formatIDR(b.schedules.reduce(function(s,i){return s+(i.schedule.principal||0);},0)) + '</td>' +
+              '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(b.schedules.reduce(function(s,i){return s+(i.schedule.interest||0);},0)) + '</td>' +
+              '<td class="text-right mono text-sm"><strong>' + Utils.formatIDR(b.total) + '</strong></td>' +
+              '<td></td>' +
+            '</tr></tfoot>' +
+          '</table></div>' +
+        '</div>';
+      }).join('') +
+
+      '</div>';
+  }
+
+  function exportDebtOutstanding() {
+    var entity = App.getEntity();
+    var debts  = entity === 'ALL' ? DB.DebtRegister.active() : DB.DebtRegister.byEntity(entity).filter(function(d){ return ['Active','Overdue'].includes(d.status); });
+    Utils.exportCSV(
+      ['ID','Deskripsi','Kategori','Tipe','Awal','Outstanding','Limit','Available','Rate','Jatuh Tempo','Status'],
+      debts.map(function(d){
+        return [d.debt_id, d.description, d.debt_category, d.debt_type||'',
+          d.original_amount||0, d.outstanding_principal||0, d.credit_limit||'',
+          d.available_credit||'', d.interest_rate||0, d.next_due_date||'', d.status];
+      }),
+      'posisi-utang-' + Utils.today() + '.csv'
+    );
+    Utils.toast('Export Posisi Utang berhasil');
+  }
+
+  function exportDebtProjection() {
+    var entity  = App.getEntity();
+    var scheds  = DB.DebtSchedule.all().filter(function(s){ return s.status === 'Scheduled' || s.status === 'Overdue'; });
+    var rows    = scheds.map(function(s) {
+      var d = DB.DebtRegister.byId(s.debt_id);
+      if (!d) return null;
+      if (entity !== 'ALL' && d.entity_id !== entity) return null;
+      return [s.schedule_id, d.description, s.installment_no, s.due_date,
+        s.principal||0, s.interest||0, s.total_installment||0, s.status];
+    }).filter(Boolean);
+    Utils.exportCSV(
+      ['Schedule ID','Fasilitas','Angsuran ke-','Due Date','Pokok','Bunga','Total','Status'],
+      rows,
+      'proyeksi-cicilan-' + Utils.today() + '.csv'
+    );
+    Utils.toast('Export Proyeksi Cicilan berhasil');
+  }
+
   return {
     render, switchReport,
     exportPL, exportPLCompare, exportBS, exportCF,
+    exportDebtOutstanding, exportDebtProjection,
     exportARaging, exportAPaging,
     exportBUProfit, exportActProfit, exportTreasury
   };
@@ -10215,14 +11961,20 @@ const SettingsModule = (() => {
             <button class="btn btn-ghost" onclick="SettingsModule.importData()">Import JSON</button>
           </div>
           <hr style="margin:1.5rem 0;border-color:var(--border)">
-          <h4 style="margin-bottom:.5rem">☁ Supabase Sync</h4>
-          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
-            Data disimpan di Supabase untuk sync antar device. Push mengirim data lokal ke cloud. Pull mengambil data terbaru dari cloud.
+          <h4 style="margin-bottom:.5rem">&#9729; Supabase Sync</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Data disimpan di Supabase untuk sync antar device. Mencakup semua transaksi, piutang, utang, treasury, dan <strong>fasilitas utang (Debt Management)</strong>.
           </p>
+          <div class="info-box" style="margin-bottom:.75rem;font-size:.76rem">
+            <strong>Cakupan Sync:</strong> Transaksi · Piutang · Utang · Treasury · 
+            Debt Register · Jadwal Angsuran · History Pembayaran · Master Data
+          </div>
           <div class="form-actions" style="gap:.75rem;flex-wrap:wrap">
             <button class="btn btn-secondary" onclick="SupabaseSync.manualSync()">&#8679; Push ke Supabase</button>
             <button class="btn btn-ghost" onclick="SupabaseSync.manualPull()">&#8681; Pull dari Supabase</button>
+            <button class="btn btn-ghost btn-sm" onclick="SettingsModule.checkSync()">&#9654; Cek Status Sync</button>
           </div>
+          <div id="sync-health-result" style="margin-top:.75rem;font-size:.76rem"></div>
           <hr style="margin:1.5rem 0;border-color:var(--border)">
           <h4 style="margin-bottom:.5rem;color:var(--text-muted)">Migrasi Data</h4>
           <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
@@ -10359,7 +12111,28 @@ const SettingsModule = (() => {
     input.click();
   }
 
-  return { render, save, exportData, importData, migrateTxnIds };
+  async function checkSync() {
+    var el = document.getElementById('sync-health-result');
+    if (el) el.innerHTML = '<span class="text-muted">&#9679; Mengecek...</span>';
+    if (typeof SupabaseSync === 'undefined') {
+      if (el) el.innerHTML = '<span class="text-red">Supabase tidak tersedia</span>';
+      return;
+    }
+    var result = await SupabaseSync.checkSyncHealth();
+    if (!el) return;
+    if (!result.ok) {
+      el.innerHTML = '<span class="text-red">&#9888; ' + result.reason + '</span>';
+      return;
+    }
+    el.innerHTML =
+      '<span class="text-green">&#10003; Terhubung ke Supabase</span><br>' +
+      '<span class="text-muted">Transaksi lokal: ' + result.transactions.local + ' baris' +
+        (result.transactions.remote_has_data ? ' · Remote: ada data' : ' · Remote: kosong') + '</span><br>' +
+      '<span class="text-muted">Debt Register lokal: ' + result.debt_register.local + ' fasilitas' +
+        (result.debt_register.remote_has_data ? ' · Remote: ada data' : ' · Remote: kosong') + '</span>';
+  }
+
+  return { render, save, exportData, importData, migrateTxnIds, checkSync };
 })();
 
 // ============================================================
@@ -10529,12 +12302,58 @@ window.addEventListener("DOMContentLoaded", function() {
 });
 
   </script>
+
   <script>
+    // ── PWA Service Worker ──────────────────────────────────
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});
+        navigator.serviceWorker.register('/FinanceOS/sw.js')
+          .then(function(reg) {
+            reg.addEventListener('updatefound', function() {
+              var w = reg.installing;
+              w.addEventListener('statechange', function() {
+                if (w.state === 'installed' && navigator.serviceWorker.controller) {
+                  if (typeof Utils !== 'undefined') Utils.toast('Update tersedia — refresh untuk memperbarui');
+                }
+              });
+            });
+          })
+          .catch(function() {});
       });
     }
+
+    // ── PWA Install Prompt ──────────────────────────────────
+    var _deferredInstall = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      _deferredInstall = e;
+      setTimeout(function() {
+        var header = document.getElementById('page-header');
+        if (header && !header.querySelector('.pwa-install-btn')) {
+          var btn = document.createElement('button');
+          btn.className = 'btn btn-ghost btn-sm pwa-install-btn';
+          btn.innerHTML = '&#8659; Install App';
+          btn.onclick = function() {
+            if (_deferredInstall) {
+              _deferredInstall.prompt();
+              _deferredInstall.userChoice.then(function(r) {
+                if (r.outcome === 'accepted') { btn.remove(); _deferredInstall = null; }
+              });
+            }
+          };
+          header.appendChild(btn);
+        }
+      }, 2000);
+    });
+
+    // ── URL shortcut navigation ─────────────────────────────
+    window.addEventListener('DOMContentLoaded', function() {
+      var params = new URLSearchParams(window.location.search);
+      var nav    = params.get('nav');
+      if (nav && typeof App !== 'undefined') {
+        setTimeout(function() { App.navigate(nav); }, 300);
+      }
+    });
   </script>
 </body>
 </html>
