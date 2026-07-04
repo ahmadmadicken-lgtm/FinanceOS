@@ -1,19 +1,17 @@
-<!-- Finance OS v4.7 — Fasilitas Utang Complete — build:20260702050557 -->
+<!-- Finance OS v5.0 Sprint 1 Rule Engine build:20260704065807 -->
 <!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Finance OS</title>
-  <meta name="description" content="Finance Operating System — Kelola keuangan bisnis dan personal"/>
+  <meta name="description" content="Finance Operating System — Sprint 1 Rule Engine"/>
   <meta name="theme-color" content="#0d1117"/>
-  <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Finance OS"/>
   <link rel="manifest" href="/FinanceOS/manifest.json"/>
   <link rel="apple-touch-icon" href="/FinanceOS/icons/apple-touch-icon.png"/>
-  <link rel="icon" type="image/png" sizes="192x192" href="/FinanceOS/icons/icon-192.png"/>
   <script>
   window.netlifyIdentity={
     on:function(){},off:function(){},open:function(){},close:function(){},
@@ -2054,6 +2052,90 @@ hr { border: none; border-top: 1px solid var(--border); }
 @media (max-width: 700px) {
   .debt-report-summary { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ══════════════════════════════════════════════════════════
+   SPRINT 1 — RULE ENGINE UI STYLES
+   ══════════════════════════════════════════════════════════ */
+
+/* Event Picker Grid */
+.event-picker-grid {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .75rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.event-domain-group { }
+.event-domain-label {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-faint);
+  margin-bottom: .35rem;
+  padding-bottom: .2rem;
+  border-bottom: 1px solid var(--border);
+}
+.event-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: .3rem .7rem;
+  margin: .15rem;
+  font-size: .76rem;
+  font-weight: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+.event-pill:hover  { border-color: var(--blue); color: var(--blue); }
+.event-pill.selected {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+/* Selected Event Display */
+.event-selected-display {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .55rem .85rem;
+  background: var(--blue-dim);
+  border: 1px solid var(--blue);
+  border-radius: var(--radius);
+  margin-top: .4rem;
+  flex-wrap: wrap;
+}
+.event-selected-name { font-size: .82rem; font-weight: 600; color: var(--blue); }
+.event-selected-meta { font-size: .72rem; color: var(--text-muted); font-family: "JetBrains Mono", monospace; }
+.event-clear-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: .9rem;
+  padding: 0 .25rem;
+}
+.event-clear-btn:hover { color: var(--red); }
+
+/* Override Warning */
+.override-warning {
+  padding: .55rem .85rem;
+  border-radius: var(--radius);
+  font-size: .78rem;
+  font-weight: 500;
+  margin-bottom: .5rem;
+}
+.override-guided { background: var(--yellow-dim); border: 1px solid var(--yellow); color: var(--yellow); }
+.override-forced  { background: var(--red-dim);    border: 1px solid var(--red);    color: var(--red); }
 </style>
 </head>
 <body>
@@ -2070,8 +2152,256 @@ hr { border: none; border-top: 1px solid var(--border); }
       <section id="page-body"></section>
     </main>
   </div>
-
   <script>
+// ============================================================
+// FINANCE OS — EVENT CATALOG SEED DATA (Sprint 1)
+// 15 System Events across 6 Domains
+// Business-specific variations handled by COA + BU + Activity
+// ============================================================
+
+const EVENT_CATALOG_SEED = {
+
+  events: [
+    // ── DOMAIN: REVENUE ──────────────────────────────────────
+    { event_id: 'EVT-R01', domain: 'Revenue', process: 'Penerimaan Pendapatan',
+      event_name: 'Terima Pembayaran Program',
+      description: 'Penerimaan pembayaran dari peserta atau klien program (WFA, SRT, dll)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-01', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-R02', domain: 'Revenue', process: 'Penerimaan Pendapatan',
+      event_name: 'Terima Pembayaran Penjualan',
+      description: 'Penerimaan dari penjualan produk atau barang dagangan',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-01', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-R03', domain: 'Revenue', process: 'Penerimaan Pendapatan',
+      event_name: 'Terima Pembayaran Jasa',
+      description: 'Penerimaan dari pemberian jasa profesional atau konsultasi',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-01', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-R04', domain: 'Revenue', process: 'Pendapatan Non-Usaha',
+      event_name: 'Terima Pendapatan Lain-lain',
+      description: 'Penerimaan selain dari kegiatan operasional utama (bunga, komisi, dll)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-01', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    // ── DOMAIN: EXPENSE ───────────────────────────────────────
+    { event_id: 'EVT-E01', domain: 'Expense', process: 'Biaya Langsung',
+      event_name: 'Bayar Biaya Program / Proyek',
+      description: 'Pengeluaran biaya langsung yang terkait dengan pelaksanaan program atau proyek (crew, akomodasi, transportasi, peralatan, dll)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-02', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-E02', domain: 'Expense', process: 'Biaya Operasional',
+      event_name: 'Bayar Beban Operasional',
+      description: 'Pengeluaran biaya umum operasional (gaji, sewa, utilitas, perlengkapan, perjalanan dinas, dll)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-02', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-E03', domain: 'Expense', process: 'Biaya Keuangan',
+      event_name: 'Bayar Beban Keuangan',
+      description: 'Pengeluaran untuk biaya keuangan (bunga pinjaman, admin bank, biaya kartu kredit)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-02', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    // ── DOMAIN: TREASURY ─────────────────────────────────────
+    { event_id: 'EVT-T01', domain: 'Treasury', process: 'Transfer Internal',
+      event_name: 'Transfer Antar Rekening',
+      description: 'Pemindahan dana antar rekening dalam satu entity (BCA → Flip, BCA → Shopee, dll)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-06', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-T02', domain: 'Treasury', process: 'Antarperusahaan',
+      event_name: 'Transfer Antarperusahaan',
+      description: 'Pemindahan dana antar entity yang berbeda (JO → Personal, Personal → JO)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-06', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    // ── DOMAIN: DEBT ──────────────────────────────────────────
+    { event_id: 'EVT-D01', domain: 'Debt', process: 'Penggunaan Fasilitas Kredit',
+      event_name: 'Belanja dengan Kartu Kredit / BNPL',
+      description: 'Penggunaan fasilitas kredit untuk pembelian barang atau jasa (CC, PayLater, dll)',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-09', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-D02', domain: 'Debt', process: 'Pembayaran Kewajiban',
+      event_name: 'Bayar Tagihan Kartu Kredit',
+      description: 'Pembayaran tagihan kartu kredit atau BNPL dari rekening bank',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-08', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-D03', domain: 'Debt', process: 'Pinjaman',
+      event_name: 'Cairkan Pinjaman',
+      description: 'Penerimaan dana dari pencairan pinjaman atau KTA ke rekening bank',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-04', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-D04', domain: 'Debt', process: 'Pinjaman',
+      event_name: 'Bayar Cicilan Pinjaman',
+      description: 'Pembayaran cicilan pinjaman atau KTA termasuk pokok dan bunga',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-08', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    // ── DOMAIN: RECEIVABLE ────────────────────────────────────
+    { event_id: 'EVT-P01', domain: 'Receivable', process: 'Piutang Usaha',
+      event_name: 'Catat Piutang / Invoice',
+      description: 'Pencatatan piutang usaha atau penerbitan invoice kepada klien atau peserta',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-03', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-P02', domain: 'Receivable', process: 'Piutang Non-Usaha',
+      event_name: 'Catat Uang Muka / Pinjaman Pribadi',
+      description: 'Pencatatan uang muka kepada karyawan, CEO Advance, atau pinjaman pribadi kepada rekan',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-05', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    // ── DOMAIN: EQUITY ────────────────────────────────────────
+    { event_id: 'EVT-Q01', domain: 'Equity', process: 'Modal',
+      event_name: 'Catat Pergerakan Modal / Prive',
+      description: 'Pencatatan setoran modal, penarikan prive, atau pergerakan ekuitas lainnya',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-07', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' }
+  ],
+
+  rules: [
+    // ── REVENUE RULES ─────────────────────────────────────────
+    { rule_id: 'RUL-R01', event_id: 'EVT-R01',
+      default_coa: '401', direction: 'Credit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet','Platform'],
+      counterparty_required: true, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 500000000 } },
+
+    { rule_id: 'RUL-R02', event_id: 'EVT-R02',
+      default_coa: '402', direction: 'Credit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet','Platform'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 500000000 } },
+
+    { rule_id: 'RUL-R03', event_id: 'EVT-R03',
+      default_coa: '403', direction: 'Credit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet','Platform'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 500000000 } },
+
+    { rule_id: 'RUL-R04', event_id: 'EVT-R04',
+      default_coa: '412', direction: 'Credit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet','Platform'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 500000000 } },
+
+    // ── EXPENSE RULES ─────────────────────────────────────────
+    { rule_id: 'RUL-E01', event_id: 'EVT-E01',
+      default_coa: '501', direction: 'Debit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet','Platform','Credit'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 500000000 } },
+
+    { rule_id: 'RUL-E02', event_id: 'EVT-E02',
+      default_coa: '531', direction: 'Debit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet','Platform','Credit'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 500000000 } },
+
+    { rule_id: 'RUL-E03', event_id: 'EVT-E03',
+      default_coa: '541', direction: 'Debit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 100000000 } },
+
+    // ── TREASURY RULES ────────────────────────────────────────
+    { rule_id: 'RUL-T01', event_id: 'EVT-T01',
+      default_coa: 'from_account', direction: 'Credit', cf_class: 'Treasury',
+      account_type_filter: ['Bank','E-Wallet','Platform'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: {} },
+
+    { rule_id: 'RUL-T02', event_id: 'EVT-T02',
+      default_coa: 'from_account', direction: 'Credit', cf_class: 'Treasury',
+      account_type_filter: ['Bank','E-Wallet','Platform'],
+      counterparty_required: true, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: {} },
+
+    // ── DEBT RULES ────────────────────────────────────────────
+    { rule_id: 'RUL-D01', event_id: 'EVT-D01',
+      default_coa: '531', direction: 'Debit', cf_class: 'Operating',
+      account_type_filter: ['Credit'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 100000000 } },
+
+    { rule_id: 'RUL-D02', event_id: 'EVT-D02',
+      default_coa: 'from_account', direction: 'Debit', cf_class: 'Financing',
+      account_type_filter: ['Bank'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: {} },
+
+    { rule_id: 'RUL-D03', event_id: 'EVT-D03',
+      default_coa: '203', direction: 'Credit', cf_class: 'Financing',
+      account_type_filter: ['Bank'],
+      counterparty_required: true, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 1000000000 } },
+
+    { rule_id: 'RUL-D04', event_id: 'EVT-D04',
+      default_coa: '203', direction: 'Debit', cf_class: 'Financing',
+      account_type_filter: ['Bank'],
+      counterparty_required: false, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: {} },
+
+    // ── RECEIVABLE RULES ──────────────────────────────────────
+    { rule_id: 'RUL-P01', event_id: 'EVT-P01',
+      default_coa: '111', direction: 'Debit', cf_class: 'Operating',
+      account_type_filter: [],
+      counterparty_required: true, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 500000000 } },
+
+    { rule_id: 'RUL-P02', event_id: 'EVT-P02',
+      default_coa: '121', direction: 'Debit', cf_class: 'Operating',
+      account_type_filter: ['Bank','E-Wallet'],
+      counterparty_required: true, override_minimum_level: 1,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 100000000 } },
+
+    // ── EQUITY RULES ──────────────────────────────────────────
+    { rule_id: 'RUL-Q01', event_id: 'EVT-Q01',
+      default_coa: '301', direction: 'Credit', cf_class: 'Financing',
+      account_type_filter: ['Bank'],
+      counterparty_required: false, override_minimum_level: 2,
+      effective_date: '2026-01-01', expiry_date: null,
+      validation_rules: { max_amount: 10000000000 } }
+  ]
+};
+
 // ============================================================
 // FINANCE OS — SEED DATA
 // All master tables. Loaded before db.js initializes.
@@ -2274,7 +2604,10 @@ const DB = (() => {
     // ── Debt Management ──────────────────────────────────────
     debt_register:     "fos_debt_register",
     debt_schedule:     "fos_debt_schedule",
-    debt_payments:     "fos_debt_payments"
+    debt_payments:     "fos_debt_payments",
+    // ── Sprint 1: Rule Engine ─────────────────────────────────
+    event_catalog:     "fos_event_catalog",
+    event_rules:       "fos_event_rules"
   };
 
   function _get(key) {
@@ -2285,7 +2618,7 @@ const DB = (() => {
     localStorage.setItem(key, JSON.stringify(data));
     // Sync to Supabase if available - only for transaction/financial data, not master
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.queueSync) {
-      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_payables','fos_payments','fos_treasury','fos_debt_register','fos_debt_schedule','fos_debt_payments'];
+      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_payables','fos_payments','fos_treasury','fos_debt_register','fos_debt_schedule','fos_debt_payments','fos_event_catalog','fos_event_rules'];
       if (syncKeys.includes(key)) {
         // Queue the whole array - handled by pushAll inside sync queue processor
         SupabaseSync.queueBulkSync(key);
@@ -2316,6 +2649,11 @@ const DB = (() => {
       _set(KEYS.accounts,          SEED_DATA.accounts);
       _set(KEYS.counterparties,    SEED_DATA.counterparties);
       _set(KEYS.transaction_types, SEED_DATA.transaction_types);
+    }
+    // ── Seed Event Catalog (Sprint 1) ─────────────────────────
+    if (typeof EVENT_CATALOG_SEED !== 'undefined' && _get(KEYS.event_catalog).length === 0) {
+      _set(KEYS.event_catalog, EVENT_CATALOG_SEED.events);
+      _set(KEYS.event_rules,   EVENT_CATALOG_SEED.rules);
     }
     if (!localStorage.getItem(KEYS.settings)) {
       localStorage.setItem(KEYS.settings, JSON.stringify({
@@ -3003,7 +3341,197 @@ const DB = (() => {
     }
   };
 
-  return { init, Settings, Entities, BU, Activities, COA, Accounts, Counterparties, TxnTypes, Transactions, Receivables, Collections, Payables, Payments, Treasury, Reports, DataIO, DebtRegister, DebtSchedule, DebtPayments };
+
+  // ══════════════════════════════════════════════════════════
+  // EVENT CATALOG (Sprint 1 Rule Engine)
+  // ══════════════════════════════════════════════════════════
+  const EventCatalog = {
+    all:      function() { return _get(KEYS.event_catalog); },
+    active:   function() { return _get(KEYS.event_catalog).filter(function(e){ return e.status === 'Active'; }); },
+    byId:     function(id) { return _get(KEYS.event_catalog).find(function(e){ return e.event_id === id; }); },
+    byDomain: function(domain) { return _get(KEYS.event_catalog).filter(function(e){ return e.domain === domain && e.status === 'Active'; }); },
+    system:   function() { return _get(KEYS.event_catalog).filter(function(e){ return e.event_category === 'System' && e.status === 'Active'; }); },
+
+    save: function(event) {
+      var list = _get(KEYS.event_catalog);
+      var idx  = list.findIndex(function(e){ return e.event_id === event.event_id; });
+      if (idx >= 0) list[idx] = event; else list.push(event);
+      _set(KEYS.event_catalog, list);
+    },
+
+    // ADR-007: Events are never deleted, only deactivated
+    deactivate: function(event_id, replaced_by_id) {
+      var list = _get(KEYS.event_catalog);
+      var idx  = list.findIndex(function(e){ return e.event_id === event_id; });
+      if (idx < 0) return { error: 'Event tidak ditemukan.' };
+      // Check if system event — system events cannot be deactivated by user
+      if (list[idx].event_category === 'System') return { error: 'System Event tidak dapat dinonaktifkan.' };
+      list[idx].status = 'Inactive';
+      list[idx].replaced_by_event_id = replaced_by_id || null;
+      _set(KEYS.event_catalog, list);
+      return { ok: true };
+    },
+
+    // Lookup rules for an event
+    getRules: function(event_id) {
+      return EventRules.active(event_id);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // EVENT RULES (Sprint 1 Rule Engine)
+  // ══════════════════════════════════════════════════════════
+  const EventRules = {
+    all:    function() { return _get(KEYS.event_rules); },
+    byId:   function(id) { return _get(KEYS.event_rules).find(function(r){ return r.rule_id === id; }); },
+    byEvent:function(event_id) { return _get(KEYS.event_rules).filter(function(r){ return r.event_id === event_id; }); },
+
+    // Get currently active rule for an event (respects effective_date)
+    active: function(event_id) {
+      var today = new Date().toISOString().split('T')[0];
+      var rules = _get(KEYS.event_rules)
+        .filter(function(r) {
+          return r.event_id === event_id &&
+            r.effective_date <= today &&
+            (!r.expiry_date || r.expiry_date > today);
+        })
+        .sort(function(a, b) { return b.effective_date.localeCompare(a.effective_date); });
+      return rules[0] || null;
+    },
+
+    save: function(rule) {
+      var list = _get(KEYS.event_rules);
+      var idx  = list.findIndex(function(r){ return r.rule_id === rule.rule_id; });
+      if (idx >= 0) list[idx] = rule; else list.push(rule);
+      _set(KEYS.event_rules, list);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // RULE ENGINE — Core derivation logic
+  // ══════════════════════════════════════════════════════════
+  const RuleEngine = {
+
+    // Derive accounting treatment from a Business Event
+    // Returns: { coa_code, direction, cf_class, validation_rules, snapshot }
+    derive: function(event_id, context) {
+      var event = EventCatalog.byId(event_id);
+      if (!event) return { error: 'Business Event tidak ditemukan: ' + event_id };
+
+      var rule = EventRules.active(event_id);
+      if (!rule) return { error: 'Tidak ada rule aktif untuk event: ' + event.event_name };
+
+      // Resolve COA — use account's COA if rule says 'from_account'
+      var coa = rule.default_coa;
+      if (coa === 'from_account' && context && context.account_id) {
+        var acct = Accounts.byId(context.account_id);
+        if (acct) coa = acct.coa_code;
+      }
+
+      // Snapshot of rules at transaction time (ADR-008)
+      var snapshot = {
+        event_id:       event_id,
+        event_name:     event.event_name,
+        rule_id:        rule.rule_id,
+        effective_date: rule.effective_date,
+        default_coa:    rule.default_coa,
+        direction:      rule.direction,
+        cf_class:       rule.cf_class,
+        override_min:   rule.override_minimum_level
+      };
+
+      return {
+        event_id:          event_id,
+        event_name:        event.event_name,
+        internal_type_id:  event.internal_type_id,
+        coa_code:          coa,
+        direction:         rule.direction,
+        cf_class:          rule.cf_class,
+        account_filter:    rule.account_type_filter || [],
+        counterparty_req:  rule.counterparty_required || false,
+        override_min:      rule.override_minimum_level || 1,
+        validation:        rule.validation_rules || {},
+        snapshot:          snapshot,
+        error:             null
+      };
+    },
+
+    // Validate a transaction against event rules
+    // Returns: { valid: bool, errors: [], warnings: [], override_required: int }
+    validate: function(event_id, formData) {
+      var result = { valid: true, errors: [], warnings: [], override_required: 1 };
+      var event  = EventCatalog.byId(event_id);
+      var rule   = EventRules.active(event_id);
+      if (!event || !rule) {
+        result.valid = false;
+        result.errors.push('Event atau Rule tidak ditemukan');
+        return result;
+      }
+
+      var v = rule.validation_rules || {};
+
+      // Amount validation
+      if (!formData.amount || formData.amount <= 0) {
+        result.errors.push('Jumlah harus lebih dari 0');
+        result.valid = false;
+      }
+      if (v.max_amount && formData.amount > v.max_amount) {
+        result.warnings.push('Jumlah melebihi batas wajar (' + Utils.formatIDR(v.max_amount) + '). Konfirmasi diperlukan.');
+        result.override_required = Math.max(result.override_required, 2);
+      }
+
+      // Account type validation
+      if (rule.account_type_filter && rule.account_type_filter.length > 0 && formData.account_id) {
+        var acct = Accounts.byId(formData.account_id);
+        if (acct && !rule.account_type_filter.includes(acct.account_type)) {
+          result.warnings.push('Rekening yang dipilih (' + acct.account_type + ') tidak umum untuk event ini. Rekening yang disarankan: ' + rule.account_type_filter.join(', '));
+          result.override_required = Math.max(result.override_required, 2);
+        }
+      }
+
+      // Counterparty validation
+      if (rule.counterparty_required && !formData.cp_id) {
+        result.errors.push('Counterparty wajib diisi untuk event ini');
+        result.valid = false;
+      }
+
+      // Date validation — no future date beyond 7 days
+      if (formData.txn_date) {
+        var txnDate = new Date(formData.txn_date);
+        var today   = new Date();
+        var diffDays = Math.floor((txnDate - today) / 86400000);
+        if (diffDays > 7) {
+          result.warnings.push('Tanggal lebih dari 7 hari ke depan. Pastikan ini benar.');
+          result.override_required = Math.max(result.override_required, 2);
+        }
+        // Forced override for very old backdated data (> 2 years)
+        if (diffDays < -730) {
+          result.warnings.push('Transaksi lebih dari 2 tahun yang lalu. Gunakan Forced Override untuk migrasi data historis.');
+          result.override_required = Math.max(result.override_required, 3);
+        }
+      }
+
+      return result;
+    },
+
+    // Get cf_class best-effort for legacy transactions (ADR-005)
+    legacyCfClass: function(type_id) {
+      var map = {
+        'TXN-01': 'Operating',   // Revenue
+        'TXN-02': 'Operating',   // Expense
+        'TXN-03': 'Operating',   // Receivable
+        'TXN-04': 'Operating',   // Payable
+        'TXN-05': 'Operating',   // CEO Advance
+        'TXN-06': 'Treasury',    // Internal Transfer
+        'TXN-07': 'Financing',   // Equity Movement
+        'TXN-08': 'Financing',   // Liability Payment
+        'TXN-09': 'Operating'    // CC Transaction
+      };
+      return map[type_id] || 'Operating';
+    }
+  };
+
+  return { init, Settings, Entities, BU, Activities, COA, Accounts, Counterparties, TxnTypes, Transactions, Receivables, Collections, Payables, Payments, Treasury, Reports, DataIO, DebtRegister, DebtSchedule, DebtPayments, EventCatalog, EventRules, RuleEngine };
 
 })();
 
@@ -4301,11 +4829,49 @@ const Transactions = (() => {
 
           // ── Section 3: Detail ──
           '<div class="form-section">' +
-            '<div class="form-section-title">3 — Detail Transaksi</div>' +
+            '<div class="form-section-title">3 — Business Event & Detail</div>' +
+
+            // ── Business Event Picker ──────────────────────────
+            '<div class="form-group" style="margin-bottom:1rem">' +
+              '<label>Business Event <span class="required">*</span></label>' +
+              '<div class="event-picker-grid" id="event-picker-grid">' +
+                (function(){
+                  var domains = {};
+                  DB.EventCatalog.active().forEach(function(e){
+                    if (!domains[e.domain]) domains[e.domain] = [];
+                    domains[e.domain].push(e);
+                  });
+                  return Object.keys(domains).map(function(domain){
+                    return '<div class="event-domain-group">' +
+                      '<div class="event-domain-label">' + domain + '</div>' +
+                      domains[domain].map(function(e){
+                        return '<button type="button" class="event-pill" data-event-id="' + e.event_id + '" ' +
+                          'data-event-name="' + e.event_name + '" ' +
+                          'title="' + e.description + '">' +
+                          e.event_name +
+                        '</button>';
+                      }).join('') +
+                    '</div>';
+                  }).join('');
+                })() +
+              '</div>' +
+              '<div id="event-selected-display" class="event-selected-display" style="display:none"></div>' +
+              '<small class="form-hint" id="event-hint">Pilih jenis operasional yang terjadi</small>' +
+            '</div>' +
+
+            // ── Override Level (hidden unless needed) ──────────
+            '<div id="override-section" style="display:none">' +
+              '<div class="override-warning" id="override-warning"></div>' +
+              '<div class="form-group">' +
+                '<label>Alasan Override <span class="required">*</span></label>' +
+                '<input class="form-input" id="f-override-reason" placeholder="Jelaskan alasan perubahan dari default...">' +
+              '</div>' +
+            '</div>' +
+
             '<div class="form-row">' +
               '<div class="form-group">' +
                 '<label>Tipe Transaksi <span class="required">*</span></label>' +
-                '<select class="form-input" id="f-type-id" onchange="Transactions.onTypeChange(); Transactions.deriveDirection();">' +
+                '<select class="form-input" id="f-type-id" onchange="Transactions.onTypeChange(); Transactions.deriveDirection();" style="display:none">' +
                   '<option value="">— Pilih Tipe —</option>' +
                   types.map(function(t){ return '<option value="' + t.type_id + '">' + t.type_name + '</option>'; }).join('') +
                 '</select>' +
@@ -4539,6 +5105,95 @@ const Transactions = (() => {
     }
   }
 
+  // ── Business Event Selection ─────────────────────────────
+  var _selectedEventId = null;
+
+  function onEventSelect(eventId) {
+    _selectedEventId = eventId;
+
+    // Update pill UI
+    document.querySelectorAll('.event-pill').forEach(function(btn) {
+      btn.classList.toggle('selected', btn.getAttribute('data-event-id') === eventId);
+    });
+
+    // Get rules from Rule Engine
+    var result = DB.RuleEngine.derive(eventId, {
+      account_id: (document.getElementById('f-account-id') || {}).value
+    });
+    if (result.error) { Utils.toast(result.error, 'error'); return; }
+
+    // Show selected event display
+    var display = document.getElementById('event-selected-display');
+    var hint    = document.getElementById('event-hint');
+    if (display) {
+      display.style.display = 'flex';
+      display.innerHTML =
+        '<span class="event-selected-name">' + result.event_name + '</span>' +
+        '<span class="event-selected-meta">' +
+          'COA: ' + result.coa_code + ' · ' +
+          'Direction: ' + result.direction + ' · ' +
+          'cf_class: ' + result.cf_class +
+        '</span>' +
+        '<button type="button" class="event-clear-btn" onclick="Transactions.clearEvent()">&#10005;</button>';
+    }
+    if (hint) hint.style.display = 'none';
+
+    // Auto-fill internal type
+    var typeEl = document.getElementById('f-type-id');
+    if (typeEl) typeEl.value = result.internal_type_id;
+
+    // Auto-fill COA if not already set
+    var coaEl = document.getElementById('f-coa-code');
+    if (coaEl && (!coaEl.value || coaEl.value === '')) {
+      coaEl.value = result.coa_code;
+    }
+
+    // Store event fields for save
+    document.getElementById('f-type-id').setAttribute('data-event-id', eventId);
+    document.getElementById('f-type-id').setAttribute('data-cf-class', result.cf_class);
+    document.getElementById('f-type-id').setAttribute('data-rule-snapshot', JSON.stringify(result.snapshot));
+
+    // Show/hide CC section
+    var ccSection = document.getElementById('cc-section');
+    if (ccSection) ccSection.style.display = result.internal_type_id === 'TXN-09' ? 'block' : 'none';
+
+    // Override check
+    _checkOverrideLevel(result);
+
+    // Derive direction
+    deriveDirection();
+  }
+
+  function clearEvent() {
+    _selectedEventId = null;
+    document.querySelectorAll('.event-pill').forEach(function(b){ b.classList.remove('selected'); });
+    var display = document.getElementById('event-selected-display');
+    var hint    = document.getElementById('event-hint');
+    var typeEl  = document.getElementById('f-type-id');
+    if (display) { display.style.display = 'none'; display.innerHTML = ''; }
+    if (hint)    hint.style.display = 'block';
+    if (typeEl)  { typeEl.value = ''; typeEl.removeAttribute('data-event-id'); typeEl.removeAttribute('data-cf-class'); }
+    document.getElementById('override-section').style.display = 'none';
+  }
+
+  function _checkOverrideLevel(result) {
+    var overrideSec = document.getElementById('override-section');
+    var overrideWarn= document.getElementById('override-warning');
+    if (!overrideSec) return;
+
+    if (result.override_min >= 2) {
+      overrideSec.style.display = 'block';
+      if (overrideWarn) {
+        var cls   = result.override_min === 3 ? 'override-forced' : 'override-guided';
+        var label = result.override_min === 3 ? '&#9940; Forced Override' : '&#9888; Guided Override';
+        overrideWarn.className = 'override-warning ' + cls;
+        overrideWarn.innerHTML = label + ' — Event ini memerlukan konfirmasi tambahan. Isikan alasan di bawah.';
+      }
+    } else {
+      overrideSec.style.display = 'none';
+    }
+  }
+
   function onTypeChange() {
     var typeId   = (document.getElementById('f-type-id') || {}).value || '';
     var dirSel   = document.getElementById('f-direction');
@@ -4555,6 +5210,7 @@ const Transactions = (() => {
 
   // ── Save ─────────────────────────────────────────────────
   function saveTxn(status) {
+    var _typeEl = document.getElementById('f-type-id');
     const form = {
       entity_id:          document.getElementById('f-entity-id').value,
       bu_id:              document.getElementById('f-bu-id').value,
@@ -4562,14 +5218,21 @@ const Transactions = (() => {
       account_id:         document.getElementById('f-account-id').value,
       counter_account_id: document.getElementById('f-counter-account-id').value,
       coa_code:           document.getElementById('f-coa-code').value,
-      type_id:            document.getElementById('f-type-id').value,
+      type_id:            _typeEl ? _typeEl.value : '',
       txn_date:           document.getElementById('f-txn-date').value,
       amount:             parseFloat(document.getElementById('f-amount').value),
       direction:          document.getElementById('f-direction').value,
       cp_id:              document.getElementById('f-cp-id').value,
       reference_id:       document.getElementById('f-ref-id').value,
       description:        document.getElementById('f-description').value,
-      cc_account_id:      (document.getElementById('f-cc-account') || {}).value || ''
+      cc_account_id:      (document.getElementById('f-cc-account') || {}).value || '',
+      // Sprint 1 Rule Engine fields
+      event_id:           _typeEl ? (_typeEl.getAttribute('data-event-id') || null) : null,
+      cf_class:           _typeEl ? (_typeEl.getAttribute('data-cf-class') || null) : null,
+      rule_snapshot:      _typeEl ? (_typeEl.getAttribute('data-rule-snapshot') || null) : null,
+      override_level:     _selectedEventId ? 1 : 1,
+      override_reason:    (document.getElementById('f-override-reason') || {}).value || null,
+      op_classification:  null  // nullable metadata, Sprint 1
     };
 
     // Extra validation for CC Transaction
@@ -4591,6 +5254,9 @@ const Transactions = (() => {
 
     errBox.style.display = 'none';
 
+    // Auto-assign cf_class from Rule Engine or legacy fallback
+    var cfClass = form.cf_class || DB.RuleEngine.legacyCfClass(form.type_id);
+
     const txn = {
       txn_id:             Utils.newTxnId(form.txn_date),
       txn_date:           form.txn_date,
@@ -4610,7 +5276,14 @@ const Transactions = (() => {
       status:             status,
       void_reason:        null,
       created_by:         'User',
-      period:             Utils.toPeriod(form.txn_date)
+      period:             Utils.toPeriod(form.txn_date),
+      // Sprint 1 Rule Engine fields
+      event_id:           form.event_id || null,
+      cf_class:           cfClass,
+      override_level:     form.override_level || 1,
+      override_reason:    form.override_reason || null,
+      rule_snapshot:      form.rule_snapshot ? JSON.parse(form.rule_snapshot) : null,
+      op_classification:  form.op_classification || null
     };
 
     DB.Transactions.save(txn);
@@ -4828,7 +5501,7 @@ const Transactions = (() => {
             '<div class="form-row">' +
               '<div class="form-group">' +
                 '<label>Tipe Transaksi <span class="required">*</span></label>' +
-                '<select class="form-input" id="f-type-id" onchange="Transactions.onTypeChange(); Transactions.deriveDirection();">' +
+                '<select class="form-input" id="f-type-id" onchange="Transactions.onTypeChange(); Transactions.deriveDirection();" style="display:none">' +
                   '<option value="">— Pilih Tipe —</option>' +
                   opt(types, 'type_id', function(t){ return t.type_name; }, t.type_id) +
                 '</select>' +
@@ -5008,6 +5681,7 @@ const Transactions = (() => {
     render, showNew, showEdit, updateTxn, exportCSV,
     onEntityChange, onBUChange, onAccountChange, onTypeChange,
     onCOAChange, deriveDirection, toggleDirectionOverride,
+    onEventSelect, clearEvent,
     saveTxn, viewDetail, postTxn,
     deleteTxn, doDeletePosted,
     applyFilter, clearFilters
@@ -11330,12 +12004,14 @@ const Masters = (() => {
   let _activeTab = 'entity';
 
   const TABS = [
-    { id: 'entity',       label: 'Entity',           icon: '⬡' },
-    { id: 'bu',           label: 'Business Unit',    icon: '◈' },
-    { id: 'activity',     label: 'Activity',         icon: '⬢' },
-    { id: 'coa',          label: 'Chart of Accounts',icon: '≡' },
-    { id: 'account',      label: 'Akun',             icon: '⊟' },
-    { id: 'counterparty', label: 'Counterparty',     icon: '⊛' }
+    { id: 'entity',        label: 'Entity',           icon: '⬡' },
+    { id: 'bu',            label: 'Business Unit',    icon: '◈' },
+    { id: 'activity',      label: 'Activity',         icon: '⬢' },
+    { id: 'coa',           label: 'Chart of Accounts',icon: '≡' },
+    { id: 'account',       label: 'Akun',             icon: '⊟' },
+    { id: 'counterparty',  label: 'Counterparty',     icon: '⊛' },
+    { id: 'event_catalog', label: 'Event Catalog',    icon: '◎' },
+    { id: 'event_rules',   label: 'Event Rules',      icon: '⤳' }
   ];
 
   function render() {
@@ -11365,11 +12041,13 @@ const Masters = (() => {
 
   function _renderTab(id) {
     switch(id) {
-      case 'entity':       return _renderEntity();
-      case 'bu':           return _renderBU();
-      case 'activity':     return _renderActivity();
-      case 'coa':          return _renderCOA();
-      case 'account':      return _renderAccount();
+      case 'entity':        return _renderEntity();
+      case 'bu':            return _renderBU();
+      case 'activity':      return _renderActivity();
+      case 'coa':           return _renderCOA();
+      case 'account':       return _renderAccount();
+      case 'event_catalog': return _renderEventCatalog();
+      case 'event_rules':   return _renderEventRules();
       case 'counterparty': return _renderCounterparty();
       default: return '';
     }
@@ -12302,58 +12980,12 @@ window.addEventListener("DOMContentLoaded", function() {
 });
 
   </script>
-
   <script>
-    // ── PWA Service Worker ──────────────────────────────────
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/FinanceOS/sw.js')
-          .then(function(reg) {
-            reg.addEventListener('updatefound', function() {
-              var w = reg.installing;
-              w.addEventListener('statechange', function() {
-                if (w.state === 'installed' && navigator.serviceWorker.controller) {
-                  if (typeof Utils !== 'undefined') Utils.toast('Update tersedia — refresh untuk memperbarui');
-                }
-              });
-            });
-          })
-          .catch(function() {});
+        navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});
       });
     }
-
-    // ── PWA Install Prompt ──────────────────────────────────
-    var _deferredInstall = null;
-    window.addEventListener('beforeinstallprompt', function(e) {
-      e.preventDefault();
-      _deferredInstall = e;
-      setTimeout(function() {
-        var header = document.getElementById('page-header');
-        if (header && !header.querySelector('.pwa-install-btn')) {
-          var btn = document.createElement('button');
-          btn.className = 'btn btn-ghost btn-sm pwa-install-btn';
-          btn.innerHTML = '&#8659; Install App';
-          btn.onclick = function() {
-            if (_deferredInstall) {
-              _deferredInstall.prompt();
-              _deferredInstall.userChoice.then(function(r) {
-                if (r.outcome === 'accepted') { btn.remove(); _deferredInstall = null; }
-              });
-            }
-          };
-          header.appendChild(btn);
-        }
-      }, 2000);
-    });
-
-    // ── URL shortcut navigation ─────────────────────────────
-    window.addEventListener('DOMContentLoaded', function() {
-      var params = new URLSearchParams(window.location.search);
-      var nav    = params.get('nav');
-      if (nav && typeof App !== 'undefined') {
-        setTimeout(function() { App.navigate(nav); }, 300);
-      }
-    });
   </script>
 </body>
 </html>
