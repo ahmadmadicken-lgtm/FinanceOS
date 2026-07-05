@@ -1,24 +1,16 @@
-<!-- Finance OS v5.0 Sprint 1 Rule Engine build:20260704065807 -->
-<!DOCTYPE html>
-<html lang="id">
+<!-- Finance OS v5.7 Auto-Sync build:20260705030735 -->
+<!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Finance OS</title>
-  <meta name="description" content="Finance Operating System — Sprint 1 Rule Engine"/>
   <meta name="theme-color" content="#0d1117"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Finance OS"/>
   <link rel="manifest" href="/FinanceOS/manifest.json"/>
   <link rel="apple-touch-icon" href="/FinanceOS/icons/apple-touch-icon.png"/>
-  <script>
-  window.netlifyIdentity={
-    on:function(){},off:function(){},open:function(){},close:function(){},
-    init:function(){},currentUser:function(){return null;},
-    isConfigured:function(){return false;},logout:function(){},refresh:function(){}
-  };
-  </script>
+  <script>window.netlifyIdentity={on:function(){},off:function(){},open:function(){},close:function(){},init:function(){},currentUser:function(){return null;},isConfigured:function(){return false;},logout:function(){},refresh:function(){}}</script>
   <style>/* ============================================================
    FINANCE OS — DESIGN SYSTEM
    Palette: Deep slate base, warm off-white surfaces,
@@ -2136,15 +2128,67 @@ hr { border: none; border-top: 1px solid var(--border); }
 }
 .override-guided { background: var(--yellow-dim); border: 1px solid var(--yellow); color: var(--yellow); }
 .override-forced  { background: var(--red-dim);    border: 1px solid var(--red);    color: var(--red); }
+
+/* ══════════════════════════════════════════════════════════
+   SPRINT 2 — OPENING BALANCE UI STYLES
+   ══════════════════════════════════════════════════════════ */
+
+.ob-form-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--yellow);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+  margin-top: 1rem;
+}
+.ob-form-title {
+  font-size: .88rem;
+  font-weight: 600;
+  margin-bottom: .75rem;
+  padding-bottom: .5rem;
+  border-bottom: 1px solid var(--border);
+}
+.ob-row-empty { opacity: .6; }
+.ob-row-empty:hover { opacity: 1; }
+
+/* ══════════════════════════════════════════════════════════
+   SPRINT 4 — REPORTING ENHANCEMENT STYLES
+   ══════════════════════════════════════════════════════════ */
+
+.report-row-drillable { cursor: pointer; transition: background var(--transition); }
+.report-row-drillable:hover { background: var(--bg-raised) !important; }
+.drill-icon { font-size: .65rem; opacity: .4; margin-left: .2rem; vertical-align: super; }
+.report-row-drillable:hover .drill-icon { opacity: 1; color: var(--blue); }
+
+.modal-lg { max-width: 860px; width: 95vw; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; }
+.modal-body { overflow-y: auto; flex: 1; }
+
+/* ══════════════════════════════════════════════════════════
+   SPRINT 7 — ERP READINESS STYLES
+   ══════════════════════════════════════════════════════════ */
+
+/* Reconciliation */
+.rec-page  { max-width: 1000px; }
+.rec-header { margin-bottom: 1rem; }
+.rec-balance-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .75rem;
+  margin: .75rem 0;
+  padding: .75rem;
+  background: var(--bg-raised);
+  border-radius: var(--radius);
+}
+.rec-bal-item  { text-align: center; }
+.rec-bal-label { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.rec-bal-val   { font-size: .95rem; font-weight: 600; font-family: "JetBrains Mono", monospace; }
+.rec-bal-ok  .rec-bal-val { color: var(--green); }
+.rec-bal-diff .rec-bal-val { color: var(--red); }
 </style>
 </head>
 <body>
   <div id="app">
     <nav id="sidebar">
-      <div id="app-logo">
-        <span class="logo-icon">&#9672;</span>
-        <span class="logo-text">Finance OS</span>
-      </div>
+      <div id="app-logo"><span class="logo-icon">&#9672;</span><span class="logo-text">Finance OS</span></div>
       <ul id="nav-links"></ul>
     </nav>
     <main id="content">
@@ -2153,6 +2197,46 @@ hr { border: none; border-top: 1px solid var(--border); }
     </main>
   </div>
   <script>
+// ============================================================
+// FINANCE OS — OPERATIONAL CLASSIFICATION SEED (Sprint 5)
+// Optional management metadata — nullable, not mandatory
+// Covers common SME operational cost/revenue categories
+// ============================================================
+
+const OP_CLASS_SEED = [
+  // ── REVENUE classifications ───────────────────────────────
+  { class_id: 'OPC-R01', domain: 'Revenue', name: 'Pendapatan Program',     description: 'Revenue dari penyelenggaraan program (WFA, SRT, outdoor)', status: 'Active' },
+  { class_id: 'OPC-R02', domain: 'Revenue', name: 'Pendapatan Penjualan',   description: 'Revenue dari penjualan produk atau barang', status: 'Active' },
+  { class_id: 'OPC-R03', domain: 'Revenue', name: 'Pendapatan Jasa',        description: 'Revenue dari pemberian jasa profesional atau konsultasi', status: 'Active' },
+  { class_id: 'OPC-R04', domain: 'Revenue', name: 'Pendapatan Sewa',        description: 'Revenue dari sewa aset atau ruang', status: 'Active' },
+  { class_id: 'OPC-R05', domain: 'Revenue', name: 'Pendapatan Komisi',      description: 'Revenue dari komisi atau referral', status: 'Active' },
+
+  // ── EXPENSE — Program/Project Cost ───────────────────────
+  { class_id: 'OPC-E01', domain: 'Expense', name: 'Biaya Crew',             description: 'Honorarium, transport, dan akomodasi crew lapangan', status: 'Active' },
+  { class_id: 'OPC-E02', domain: 'Expense', name: 'Biaya Akomodasi',        description: 'Biaya penginapan dan homestay untuk program', status: 'Active' },
+  { class_id: 'OPC-E03', domain: 'Expense', name: 'Biaya Transportasi',     description: 'Transport peserta, crew, dan operasional lapangan', status: 'Active' },
+  { class_id: 'OPC-E04', domain: 'Expense', name: 'Biaya Konsumsi',         description: 'Makan dan minum untuk program atau operasional', status: 'Active' },
+  { class_id: 'OPC-E05', domain: 'Expense', name: 'Biaya Peralatan',        description: 'Sewa atau pembelian peralatan program/proyek', status: 'Active' },
+  { class_id: 'OPC-E06', domain: 'Expense', name: 'Biaya Dokumentasi',      description: 'Foto, video, dan dokumentasi program', status: 'Active' },
+  { class_id: 'OPC-E07', domain: 'Expense', name: 'Biaya Cetak & Materi',   description: 'Printing, merchandise, dan materi program', status: 'Active' },
+  { class_id: 'OPC-E08', domain: 'Expense', name: 'Biaya Perizinan',        description: 'Izin, asuransi, dan administrasi program', status: 'Active' },
+
+  // ── EXPENSE — Operational Cost ────────────────────────────
+  { class_id: 'OPC-E09', domain: 'Expense', name: 'Biaya SDM',              description: 'Gaji, honorarium, dan tunjangan karyawan/freelance', status: 'Active' },
+  { class_id: 'OPC-E10', domain: 'Expense', name: 'Biaya Pemasaran',        description: 'Iklan, promosi, dan aktivitas marketing', status: 'Active' },
+  { class_id: 'OPC-E11', domain: 'Expense', name: 'Biaya Utilitas',         description: 'Listrik, air, internet, dan telepon', status: 'Active' },
+  { class_id: 'OPC-E12', domain: 'Expense', name: 'Biaya Sewa Tempat',      description: 'Sewa kantor, gudang, atau ruang kerja', status: 'Active' },
+  { class_id: 'OPC-E13', domain: 'Expense', name: 'Biaya Administrasi',     description: 'ATK, perlengkapan kantor, dan administrasi umum', status: 'Active' },
+  { class_id: 'OPC-E14', domain: 'Expense', name: 'Biaya Teknologi',        description: 'Software, subscription, dan biaya digital', status: 'Active' },
+  { class_id: 'OPC-E15', domain: 'Expense', name: 'Biaya Spare Part',       description: 'Suku cadang dan material untuk jasa teknis', status: 'Active' },
+  { class_id: 'OPC-E16', domain: 'Expense', name: 'Biaya Jasa Teknis',      description: 'Ongkos teknisi dan tenaga ahli teknis', status: 'Active' },
+  { class_id: 'OPC-E17', domain: 'Expense', name: 'Biaya Inventori',        description: 'Pembelian barang dagangan atau bahan baku', status: 'Active' },
+  { class_id: 'OPC-E18', domain: 'Expense', name: 'Biaya Produksi',         description: 'Biaya produksi dan pengolahan produk', status: 'Active' },
+
+  // ── Cross-domain (nullable domain) ───────────────────────
+  { class_id: 'OPC-X01', domain: null,     name: 'Lain-lain',               description: 'Klasifikasi untuk item yang tidak masuk kategori lain', status: 'Active' }
+];
+
 // ============================================================
 // FINANCE OS — EVENT CATALOG SEED DATA (Sprint 1)
 // 15 System Events across 6 Domains
@@ -2607,7 +2691,14 @@ const DB = (() => {
     debt_payments:     "fos_debt_payments",
     // ── Sprint 1: Rule Engine ─────────────────────────────────
     event_catalog:     "fos_event_catalog",
-    event_rules:       "fos_event_rules"
+    event_rules:       "fos_event_rules",
+    // ── Sprint 2: Opening Balance ─────────────────────────────
+    coa_balances:      "fos_coa_balances",
+    // ── Sprint 5: Operational Classification ─────────────────
+    op_classes:        "fos_op_classes",
+    // ── Sprint 7: ERP Readiness ───────────────────────────────
+    reconciliations:   "fos_reconciliations",
+    fixed_assets:      "fos_fixed_assets"
   };
 
   function _get(key) {
@@ -2618,7 +2709,7 @@ const DB = (() => {
     localStorage.setItem(key, JSON.stringify(data));
     // Sync to Supabase if available - only for transaction/financial data, not master
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.queueSync) {
-      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_payables','fos_payments','fos_treasury','fos_debt_register','fos_debt_schedule','fos_debt_payments','fos_event_catalog','fos_event_rules'];
+      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_payables','fos_payments','fos_treasury','fos_debt_register','fos_debt_schedule','fos_debt_payments','fos_event_catalog','fos_event_rules','fos_coa_balances'];
       if (syncKeys.includes(key)) {
         // Queue the whole array - handled by pushAll inside sync queue processor
         SupabaseSync.queueBulkSync(key);
@@ -2655,6 +2746,10 @@ const DB = (() => {
       _set(KEYS.event_catalog, EVENT_CATALOG_SEED.events);
       _set(KEYS.event_rules,   EVENT_CATALOG_SEED.rules);
     }
+    // ── Seed Op Classifications (Sprint 5) ───────────────────
+    if (typeof OP_CLASS_SEED !== 'undefined' && _get(KEYS.op_classes).length === 0) {
+      _set(KEYS.op_classes, OP_CLASS_SEED);
+    }
     if (!localStorage.getItem(KEYS.settings)) {
       localStorage.setItem(KEYS.settings, JSON.stringify({
         system_name: "Finance OS", base_currency: "IDR",
@@ -2670,12 +2765,34 @@ const DB = (() => {
     get: () => {
       try {
         const raw = localStorage.getItem(KEYS.settings);
-        if (!raw) return { system_name:"Finance OS", base_currency:"IDR", go_live_date: new Date().toISOString().split("T")[0], default_entity:"ALL" };
+        if (!raw) return { system_name:"Finance OS", base_currency:"IDR", go_live_date: new Date().toISOString().split("T")[0], default_entity:"ALL", locked_periods:[] };
         const p = JSON.parse(raw);
-        return (p && !Array.isArray(p)) ? p : { system_name:"Finance OS", base_currency:"IDR", default_entity:"ALL" };
-      } catch { return { system_name:"Finance OS", base_currency:"IDR", default_entity:"ALL" }; }
+        return (p && !Array.isArray(p)) ? p : { system_name:"Finance OS", base_currency:"IDR", default_entity:"ALL", locked_periods:[] };
+      } catch { return { system_name:"Finance OS", base_currency:"IDR", default_entity:"ALL", locked_periods:[] }; }
     },
-    set: (data) => localStorage.setItem(KEYS.settings, JSON.stringify(data))
+    set: (data) => localStorage.setItem(KEYS.settings, JSON.stringify(data)),
+
+    lockPeriod: function(period, reason) {
+      var cfg = Settings.get();
+      if (!cfg.locked_periods) cfg.locked_periods = [];
+      if (!cfg.locked_periods.find(function(p){ return p.period === period; })) {
+        cfg.locked_periods.push({ period: period, locked_at: new Date().toISOString(), reason: reason||'' });
+        Settings.set(cfg);
+      }
+    },
+    unlockPeriod: function(period) {
+      var cfg = Settings.get();
+      if (!cfg.locked_periods) return;
+      cfg.locked_periods = cfg.locked_periods.filter(function(p){ return p.period !== period; });
+      Settings.set(cfg);
+    },
+    isPeriodLocked: function(period) {
+      var cfg = Settings.get();
+      return !!(cfg.locked_periods && cfg.locked_periods.some(function(p){ return p.period === period; }));
+    },
+    lockedPeriods: function() {
+      return Settings.get().locked_periods || [];
+    }
   };
 
   // ── Master: Entities ──────────────────────────────────────
@@ -2991,16 +3108,56 @@ const DB = (() => {
   // ── Reporting Queries ─────────────────────────────────────
   const Reports = {
     cashPosition: (entity_id) => {
-      const cashAccts = Accounts.cashAccounts().filter(a => entity_id === "ALL" || a.entity_id === entity_id);
-      const txns = _get(KEYS.transactions).filter(t => t.status === "Posted");
-      let total = cashAccts.reduce((s, a) => s + (a.opening_balance || 0), 0);
-      txns.forEach(t => {
-        const acct = cashAccts.find(a => a.account_id === t.account_id);
-        if (!acct) return;
-        const coa = COA.byCode(t.coa_code);
-        if (!coa || coa.coa_category !== "Asset") return;
-        total += t.direction === "Debit" ? t.amount : -t.amount;
+      var cashAccts = Accounts.cashAccounts().filter(function(a){
+        return entity_id === "ALL" || a.entity_id === entity_id;
       });
+      var txns = _get(KEYS.transactions).filter(function(t){ return t.status === "Posted"; });
+
+      // Start from account opening_balance (legacy) OR from COA opening balance
+      var total = 0;
+
+      // Cash COA codes
+      var cashCOAs = ['101','102','103'];
+
+      cashCOAs.forEach(function(coaCode) {
+        var entities = entity_id === "ALL"
+          ? _get(KEYS.entities).map(function(e){ return e.entity_id; })
+          : [entity_id];
+
+        entities.forEach(function(eid) {
+          var ob = _get(KEYS.coa_balances).find(function(b){
+            return b.entity_id === eid && b.coa_code === coaCode;
+          });
+          if (ob) {
+            // Use COA opening balance + transactions on/after as_of_date
+            total += ob.balance;
+            txns.filter(function(t){
+              return t.entity_id === eid &&
+                t.coa_code === coaCode &&
+                t.txn_date >= ob.as_of_date &&
+                cashAccts.find(function(a){ return a.account_id === t.account_id; });
+            }).forEach(function(t){
+              total += t.direction === "Debit" ? t.amount : -t.amount;
+            });
+          }
+        });
+      });
+
+      // Fallback: if no COA opening balances, use legacy account opening_balance
+      var hasAnyOB = _get(KEYS.coa_balances).some(function(b){
+        return entity_id === "ALL" || b.entity_id === entity_id;
+      });
+      if (!hasAnyOB) {
+        total = cashAccts.reduce(function(s,a){ return s + (a.opening_balance || 0); }, 0);
+        txns.forEach(function(t) {
+          var acct = cashAccts.find(function(a){ return a.account_id === t.account_id; });
+          if (!acct) return;
+          var coa = COA.byCode(t.coa_code);
+          if (!coa || coa.coa_category !== "Asset") return;
+          total += t.direction === "Debit" ? t.amount : -t.amount;
+        });
+      }
+
       return total;
     },
     pl: (entity_id, period) => {
@@ -3075,14 +3232,42 @@ const DB = (() => {
       return buckets;
     },
     balanceSheet: (entity_id) => {
-      const txns = _get(KEYS.transactions).filter(t => t.status === "Posted" && (entity_id === "ALL" || t.entity_id === entity_id));
-      const balances = {};
-      txns.forEach(t => {
-        if (!balances[t.coa_code]) balances[t.coa_code] = 0;
-        balances[t.coa_code] += t.direction === "Debit" ? t.amount : -t.amount;
+      var allTxns = _get(KEYS.transactions).filter(function(t){
+        return t.status === "Posted" && (entity_id === "ALL" || t.entity_id === entity_id);
       });
-      return COA.all().filter(c => ["Asset","Liability","Equity"].includes(c.coa_category))
-        .map(c => ({ ...c, balance: balances[c.coa_code] || 0 }));
+
+      // Get all entities in scope
+      var entities = entity_id === "ALL"
+        ? _get(KEYS.entities).map(function(e){ return e.entity_id; })
+        : [entity_id];
+
+      var balances = {};
+
+      entities.forEach(function(eid) {
+        // Get opening balances for this entity
+        var obs = _get(KEYS.coa_balances).filter(function(b){ return b.entity_id === eid; });
+        var obMap = {};
+        obs.forEach(function(ob){ obMap[ob.coa_code] = ob; });
+
+        // For each COA with an opening balance, start from OB + transactions >= as_of_date
+        obs.forEach(function(ob) {
+          if (!balances[ob.coa_code]) balances[ob.coa_code] = 0;
+          balances[ob.coa_code] += ob.balance;
+        });
+
+        // Add transactions
+        allTxns.filter(function(t){ return t.entity_id === eid; }).forEach(function(t) {
+          // If there's an OB for this COA, only count transactions on/after as_of_date
+          var ob = obMap[t.coa_code];
+          if (ob && t.txn_date < ob.as_of_date) return; // skip pre-OB transactions
+
+          if (!balances[t.coa_code]) balances[t.coa_code] = 0;
+          balances[t.coa_code] += t.direction === "Debit" ? t.amount : -t.amount;
+        });
+      });
+
+      return COA.all().filter(function(c){ return ["Asset","Liability","Equity"].includes(c.coa_category); })
+        .map(function(c){ return Object.assign({}, c, { balance: balances[c.coa_code] || 0 }); });
     }
   };
 
@@ -3531,7 +3716,185 @@ const DB = (() => {
     }
   };
 
-  return { init, Settings, Entities, BU, Activities, COA, Accounts, Counterparties, TxnTypes, Transactions, Receivables, Collections, Payables, Payments, Treasury, Reports, DataIO, DebtRegister, DebtSchedule, DebtPayments, EventCatalog, EventRules, RuleEngine };
+
+  // ══════════════════════════════════════════════════════════
+  // COA BALANCES — Opening Balance per COA per Entity
+  // Sprint 2
+  // ══════════════════════════════════════════════════════════
+  const COABalances = {
+    all:       function() { return _get(KEYS.coa_balances); },
+    byEntity:  function(entity_id) {
+      return _get(KEYS.coa_balances).filter(function(b){ return b.entity_id === entity_id; });
+    },
+    byCOA:     function(entity_id, coa_code) {
+      return _get(KEYS.coa_balances).find(function(b){
+        return b.entity_id === entity_id && b.coa_code === coa_code;
+      });
+    },
+    byId:      function(ob_id) {
+      return _get(KEYS.coa_balances).find(function(b){ return b.ob_id === ob_id; });
+    },
+
+    save: function(ob) {
+      var list = _get(KEYS.coa_balances);
+      var idx  = list.findIndex(function(b){ return b.ob_id === ob.ob_id; });
+      if (idx >= 0) list[idx] = ob; else list.push(ob);
+      _set(KEYS.coa_balances, list);
+    },
+
+    delete: function(ob_id) {
+      _del(KEYS.coa_balances, function(b){ return b.ob_id !== ob_id; });
+      return { ok: true };
+    },
+
+    // Get opening balance value for a COA+Entity
+    // Returns { balance, as_of_date } or null
+    get: function(entity_id, coa_code) {
+      var ob = COABalances.byCOA(entity_id, coa_code);
+      if (!ob) return null;
+      return { balance: ob.balance, as_of_date: ob.as_of_date };
+    },
+
+    // Get the earliest as_of_date across all OBs for an entity
+    // Used as the "start of system" date
+    goLiveDate: function(entity_id) {
+      var obs = COABalances.byEntity(entity_id);
+      if (obs.length === 0) return null;
+      return obs.reduce(function(min, ob){
+        return ob.as_of_date < min ? ob.as_of_date : min;
+      }, obs[0].as_of_date);
+    }
+  };
+
+
+  // ══════════════════════════════════════════════════════════
+  // OPERATIONAL CLASSIFICATION (Sprint 5)
+  // Optional management metadata per transaction
+  // ══════════════════════════════════════════════════════════
+  const OpClasses = {
+    all:       function() { return _get(KEYS.op_classes); },
+    active:    function() { return _get(KEYS.op_classes).filter(function(c){ return c.status === 'Active'; }); },
+    byId:      function(id) { return _get(KEYS.op_classes).find(function(c){ return c.class_id === id; }); },
+    byDomain:  function(domain) {
+      return _get(KEYS.op_classes).filter(function(c){ return c.domain === domain && c.status === 'Active'; });
+    },
+    forEvent:  function(event_id) {
+      var evt = EventCatalog.byId(event_id);
+      if (!evt) return _get(KEYS.op_classes).filter(function(c){ return c.status === 'Active'; });
+      return _get(KEYS.op_classes).filter(function(c){
+        return c.status === 'Active' && (c.domain === evt.domain || !c.domain);
+      });
+    },
+    save: function(cls) {
+      var list = _get(KEYS.op_classes);
+      var idx  = list.findIndex(function(c){ return c.class_id === cls.class_id; });
+      if (idx >= 0) list[idx] = cls; else list.push(cls);
+      _set(KEYS.op_classes, list);
+    },
+    delete: function(class_id) {
+      // Check if used in transactions
+      var inUse = _get(KEYS.transactions).some(function(t){ return t.op_classification === class_id; });
+      if (inUse) return { error: 'Tidak bisa hapus — sudah digunakan di transaksi.' };
+      _del(KEYS.op_classes, function(c){ return c.class_id !== class_id; });
+      return { ok: true };
+    }
+  };
+
+
+  // ══════════════════════════════════════════════════════════
+  // RECONCILIATIONS (Sprint 7)
+  // ══════════════════════════════════════════════════════════
+  const Reconciliations = {
+    all:      function() { return _get(KEYS.reconciliations); },
+    byId:     function(id) { return _get(KEYS.reconciliations).find(function(r){ return r.rec_id === id; }); },
+    byAccount:function(account_id) { return _get(KEYS.reconciliations).filter(function(r){ return r.account_id === account_id; }); },
+    active:   function() { return _get(KEYS.reconciliations).filter(function(r){ return r.status === 'Open'; }); },
+
+    save: function(rec) {
+      var list = _get(KEYS.reconciliations);
+      var idx  = list.findIndex(function(r){ return r.rec_id === rec.rec_id; });
+      if (idx >= 0) list[idx] = rec; else list.push(rec);
+      _set(KEYS.reconciliations, list);
+    },
+
+    // Get unreconciled transactions for an account up to a statement date
+    unreconciled: function(account_id, statement_date) {
+      return _get(KEYS.transactions).filter(function(t) {
+        return t.account_id === account_id &&
+          t.status === 'Posted' &&
+          t.txn_date <= statement_date &&
+          !t.reconciled;
+      }).sort(function(a,b){ return a.txn_date.localeCompare(b.txn_date); });
+    },
+
+    // Mark transactions as reconciled
+    markReconciled: function(txn_ids, rec_id) {
+      var txns = _get(KEYS.transactions);
+      txns.forEach(function(t) {
+        if (txn_ids.includes(t.txn_id)) {
+          t.reconciled = true;
+          t.rec_id = rec_id;
+        }
+      });
+      _set(KEYS.transactions, txns);
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // FIXED ASSETS (Sprint 7)
+  // ══════════════════════════════════════════════════════════
+  const FixedAssets = {
+    all:    function() { return _get(KEYS.fixed_assets); },
+    active: function() { return _get(KEYS.fixed_assets).filter(function(a){ return a.status === 'Active'; }); },
+    byId:   function(id) { return _get(KEYS.fixed_assets).find(function(a){ return a.asset_id === id; }); },
+
+    save: function(asset) {
+      var list = _get(KEYS.fixed_assets);
+      var idx  = list.findIndex(function(a){ return a.asset_id === asset.asset_id; });
+      if (idx >= 0) list[idx] = asset; else list.push(asset);
+      _set(KEYS.fixed_assets, list);
+    },
+
+    // Calculate depreciation for a period
+    depreciation: function(asset, period) {
+      if (asset.depreciation_method === 'None') return 0;
+      if (asset.depreciation_method === 'Straight_Line') {
+        var monthly = (asset.acquisition_cost - (asset.residual_value||0)) / (asset.useful_life_months||1);
+        // Check if period is within asset life
+        var acqPeriod = asset.acquisition_date ? asset.acquisition_date.substring(0,7) : null;
+        if (!acqPeriod || period < acqPeriod) return 0;
+        var endPeriod = asset.end_date ? asset.end_date.substring(0,7) : null;
+        if (endPeriod && period > endPeriod) return 0;
+        return Math.round(monthly);
+      }
+      return 0;
+    },
+
+    // Get book value as of today
+    bookValue: function(asset) {
+      var today  = new Date().toISOString().split('T')[0];
+      var acq    = asset.acquisition_date || today;
+      var months = Math.max(0, Math.floor((new Date(today) - new Date(acq)) / (30.44 * 86400000)));
+      var depTotal = FixedAssets.depreciation(asset, '') * Math.min(months, asset.useful_life_months||0);
+      return Math.max(asset.residual_value||0, asset.acquisition_cost - depTotal);
+    },
+
+    // Summary for Balance Sheet
+    summary: function(entity_id) {
+      var assets = entity_id && entity_id !== 'ALL'
+        ? _get(KEYS.fixed_assets).filter(function(a){ return a.entity_id === entity_id; })
+        : _get(KEYS.fixed_assets);
+      var active = assets.filter(function(a){ return a.status === 'Active'; });
+      return {
+        count:           active.length,
+        total_cost:      active.reduce(function(s,a){ return s+a.acquisition_cost; }, 0),
+        total_book_val:  active.reduce(function(s,a){ return s+FixedAssets.bookValue(a); }, 0),
+        total_accum_dep: active.reduce(function(s,a){ return s+(a.acquisition_cost-FixedAssets.bookValue(a)); }, 0)
+      };
+    }
+  };
+
+  return { init, Settings, Entities, BU, Activities, COA, Accounts, Counterparties, TxnTypes, Transactions, Receivables, Collections, Payables, Payments, Treasury, Reports, DataIO, DebtRegister, DebtSchedule, DebtPayments, EventCatalog, EventRules, RuleEngine, COABalances, OpClasses, Reconciliations, FixedAssets };
 
 })();
 
@@ -3850,19 +4213,99 @@ const SupabaseSync = (() => {
   var _syncing     = false;
 
   // ── Init ────────────────────────────────────────────────────
-  async function init() {
-    window.addEventListener('online',  function() { _online = true;  _processSyncQueue(); });
-    window.addEventListener('offline', function() { _online = false; _showOfflineIndicator(); });
+  var _lastPullTime   = 0;   // timestamp of last successful pull
+  var _pendingPush    = false; // true if local changes not yet pushed
+  var _autoSyncTimer  = null;  // periodic sync timer
 
-    // Try to pull from Supabase on startup
-    try {
-      await pullFromSupabase();
+  async function init() {
+    // ── Online/offline listeners ──────────────────────────────
+    window.addEventListener('online', function() {
+      _online = true;
+      _showSyncStatus('syncing');
+      // When coming back online: push pending changes then pull
+      _autoSyncCycle();
+    });
+    window.addEventListener('offline', function() {
+      _online = false;
+      _showOfflineIndicator();
+    });
+
+    // ── Visibility change: pull when tab/app becomes visible ──
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden && _online) {
+        // Pull latest from cloud when user switches back to app
+        var sinceLastPull = Date.now() - _lastPullTime;
+        if (sinceLastPull > 30000) { // only if >30s since last pull
+          _autoPull();
+        }
+      }
+    });
+
+    // ── Startup: pull from Supabase first ────────────────────
+    if (_online) {
+      try {
+        _showSyncStatus('syncing');
+        await pullFromSupabase();
+        _lastPullTime  = Date.now();
+        _initialized   = true;
+        _showSyncStatus('synced');
+        console.log('[SupabaseSync] Auto-pull on startup complete');
+        // After pulling, reload app data silently
+        if (typeof App !== 'undefined') {
+          try { App.refresh(); } catch(e) { /* App.refresh may not exist yet */ }
+        }
+      } catch(e) {
+        console.warn('[SupabaseSync] Startup pull failed, using local data:', e.message);
+        _initialized = true;
+        _showSyncStatus('offline');
+      }
+    } else {
       _initialized = true;
-      _showSyncStatus('synced');
-      console.log('[SupabaseSync] Init complete');
-    } catch(e) {
-      console.warn('[SupabaseSync] Init failed, using local data:', e.message);
       _showSyncStatus('offline');
+    }
+
+    // ── Periodic auto-sync every 2 minutes ───────────────────
+    if (_autoSyncTimer) clearInterval(_autoSyncTimer);
+    _autoSyncTimer = setInterval(function() {
+      if (_online && !_syncing) _autoSyncCycle();
+    }, 120000); // 2 minutes
+  }
+
+  // ── Auto sync cycle: push then pull ──────────────────────────
+  async function _autoSyncCycle() {
+    if (!_online || _syncing) return;
+    try {
+      _showSyncStatus('syncing');
+      // Push any pending local changes
+      for (var lsKey in TABLE_MAP) {
+        try { await pushAll(lsKey); } catch(e) { /* continue */ }
+      }
+      await pushSettings();
+      // Then pull latest
+      await pullFromSupabase();
+      _lastPullTime = Date.now();
+      _pendingPush  = false;
+      _showSyncStatus('synced');
+    } catch(e) {
+      console.warn('[SupabaseSync] Auto-sync cycle failed:', e.message);
+      _showSyncStatus('error');
+    }
+  }
+
+  // ── Auto pull only (for visibility change) ───────────────────
+  async function _autoPull() {
+    if (!_online || _syncing) return;
+    try {
+      _showSyncStatus('syncing');
+      await pullFromSupabase();
+      _lastPullTime = Date.now();
+      _showSyncStatus('synced');
+      // Refresh current page data
+      if (typeof App !== 'undefined') {
+        try { App.refresh(); } catch(e) { /* ok */ }
+      }
+    } catch(e) {
+      _showSyncStatus('error');
     }
   }
 
@@ -4279,6 +4722,45 @@ const Dashboard = (() => {
         ids: [],
         route: 'reports'
       });
+    }
+
+    // Rule 6: Transactions without Business Event (post Sprint 1 go-live)
+    var goLive = DB.Settings.get().go_live_date || null;
+    if (goLive) {
+      var noEvent = txns.filter(function(t) {
+        return t.status === 'Posted' &&
+          t.txn_date >= goLive &&
+          !t.event_id &&
+          (period === 'ALL' || t.period === period);
+      });
+      if (noEvent.length > 0) {
+        issues.push({
+          type: 'info',
+          icon: '◎',
+          label: 'Transaksi Tanpa Business Event',
+          detail: noEvent.length + ' transaksi diinput tanpa memilih Business Event. Pertimbangkan untuk mengupdate agar laporan per Event lebih akurat.',
+          ids: noEvent.slice(0,3).map(function(t){ return t.txn_id; }),
+          route: 'transactions'
+        });
+      }
+    }
+
+    // Rule 7: Locked period violation attempts
+    var lockedPeriods = DB.Settings.lockedPeriods().map(function(p){ return p.period; });
+    if (lockedPeriods.length > 0) {
+      var lockedTxns = txns.filter(function(t){
+        return lockedPeriods.includes(t.period) && t.override_level !== 3;
+      });
+      if (lockedTxns.length > 0) {
+        issues.push({
+          type: 'warning',
+          icon: '&#128274;',
+          label: 'Transaksi di Periode Terkunci',
+          detail: lockedTxns.length + ' transaksi berada di periode yang sudah dikunci tanpa Forced Override. Periksa apakah ini disengaja.',
+          ids: lockedTxns.slice(0,3).map(function(t){ return t.txn_id; }),
+          route: 'transactions'
+        });
+      }
     }
 
     return issues;
@@ -4926,6 +5408,23 @@ const Transactions = (() => {
               '<label>Deskripsi <span class="required">*</span></label>' +
               '<input class="form-input" id="f-description" placeholder="Deskripsi singkat transaksi ini">' +
             '</div>' +
+            '<div class="form-group">' +
+              '<label>Klasifikasi Operasional <span class="text-muted text-xs">(opsional)</span></label>' +
+              '<select class="form-input" id="f-op-class">' +
+                '<option value="">— Tidak diisi —</option>' +
+                (function(){
+                  var classes = typeof DB !== "undefined" && DB.OpClasses ? DB.OpClasses.active() : [];
+                  var domains = {};
+                  classes.forEach(function(c){ var d=c.domain||"Lainnya"; if(!domains[d]) domains[d]=[]; domains[d].push(c); });
+                  return Object.keys(domains).map(function(d){
+                    return "<optgroup label=\""+d+"\">" +
+                      domains[d].map(function(c){ return "<option value=\""+c.class_id+"\">"+c.name+"</option>"; }).join("") +
+                    "</optgroup>";
+                  }).join("");
+                })() +
+              '</select>' +
+              '<small class="form-hint">Metadata manajemen — untuk analisis operasional</small>' +
+            '</div>' +
           '</div>' +
 
           // ── Error Box ──
@@ -5232,7 +5731,7 @@ const Transactions = (() => {
       rule_snapshot:      _typeEl ? (_typeEl.getAttribute('data-rule-snapshot') || null) : null,
       override_level:     _selectedEventId ? 1 : 1,
       override_reason:    (document.getElementById('f-override-reason') || {}).value || null,
-      op_classification:  null  // nullable metadata, Sprint 1
+      op_classification:  (document.getElementById('f-op-class')||{}).value || null
     };
 
     // Extra validation for CC Transaction
@@ -10298,6 +10797,32 @@ const ImportModule = (() => {
     // Filter out empty rows
     _mapped = _mapped.filter(function(m){ return m.amount > 0 && m.description; });
 
+    // Duplicate detection — check against existing transactions
+    var existing = DB.Transactions.all();
+    _mapped.forEach(function(m) {
+      var isDup = existing.some(function(t) {
+        return t.txn_date === m.txn_date &&
+          Math.abs(t.amount - m.amount) < 1 &&
+          t.description && m.description &&
+          t.description.trim().toLowerCase() === m.description.trim().toLowerCase();
+      });
+      if (isDup) {
+        m._is_duplicate = true;
+        m._selected = false; // deselect duplicates by default
+        m._needs_review = true;
+      } else {
+        m._is_duplicate = false;
+      }
+    });
+
+    var dupCount = _mapped.filter(function(m){ return m._is_duplicate; }).length;
+    if (dupCount > 0) {
+      document.getElementById('import-status').innerHTML +=
+        '<div style="margin-top:.35rem;padding:.45rem .75rem;background:var(--yellow-dim);border:1px solid var(--yellow);border-radius:var(--radius);font-size:.78rem;color:var(--yellow)">' +
+          '&#9888; ' + dupCount + ' baris kemungkinan duplikat (tanggal + jumlah + deskripsi sama dengan transaksi existing). Baris ini di-deselect secara default.' +
+        '</div>';
+    }
+
     _page = 0;
     _renderPreview();
   }
@@ -10307,7 +10832,8 @@ const ImportModule = (() => {
     var area      = document.getElementById('import-preview-area');
     var total     = _mapped.length;
     var selected  = _mapped.filter(function(m){ return m._selected; }).length;
-    var needsRev  = _mapped.filter(function(m){ return m._needs_review; }).length;
+    var needsRev  = _mapped.filter(function(m){ return m._needs_review && !m._is_duplicate; }).length;
+    var dupCount  = _mapped.filter(function(m){ return m._is_duplicate; }).length;
     var pageCount = Math.ceil(total / PAGE_SIZE);
     var start     = _page * PAGE_SIZE;
     var pageRows  = _mapped.slice(start, start + PAGE_SIZE);
@@ -10364,7 +10890,11 @@ const ImportModule = (() => {
         // Original
         '<td class="text-xs text-muted">' + m._orig_subcat + '</td>' +
         '<td class="text-xs text-muted">' + m._orig_cat + '</td>' +
-        (m._needs_review ? '<td><span class="badge badge-yellow">Review</span></td>' : '<td><span class="badge badge-green">OK</span></td>') +
+        (m._is_duplicate
+          ? '<td><span class="badge badge-red">Duplikat</span></td>'
+          : m._needs_review
+            ? '<td><span class="badge badge-yellow">Review</span></td>'
+            : '<td><span class="badge badge-green">OK</span></td>') +
       '</tr>';
     }).join('');
 
@@ -10375,6 +10905,7 @@ const ImportModule = (() => {
           '<span><strong>' + total + '</strong> baris total</span>' +
           '<span><strong class="text-green">' + selected + '</strong> akan diimport</span>' +
           (needsRev > 0 ? '<span><strong class="text-yellow">' + needsRev + '</strong> perlu review</span>' : '') +
+          (dupCount > 0 ? '<span><strong class="text-red">' + dupCount + '</strong> duplikat</span>' : '') +
         '</div>' +
         '<div class="import-summary-actions">' +
           '<button class="btn btn-ghost btn-sm" onclick="ImportModule.selectAll(true)">Pilih Semua</button>' +
@@ -10638,7 +11169,8 @@ const Reports = (() => {
     { id: 'act_profit',   label: 'Profitabilitas Activity',  icon: '⬡' },
     { id: 'treasury',     label: 'Ringkasan Treasury',       icon: '⟳' },
     { id: 'debt_outstanding', label: 'Posisi Utang',         icon: '◎' },
-    { id: 'debt_projection',  label: 'Proyeksi Cicilan',     icon: '⤳' }
+    { id: 'debt_projection',  label: 'Proyeksi Cicilan',     icon: '⤳' },
+    { id: 'event_report',     label: 'Laporan per Event',    icon: '◎' }
   ];
 
   // ── Entry Point ───────────────────────────────────────────
@@ -10684,6 +11216,7 @@ const Reports = (() => {
       case 'treasury':          return _buildTreasurySummary(entity, period);
       case 'debt_outstanding':  return _buildDebtOutstanding(entity);
       case 'debt_projection':   return _buildDebtProjection(entity);
+      case 'event_report':      return _buildEventReport(entity, period);
       default:          return '<div class="empty-state"><p>Laporan tidak ditemukan.</p></div>';
     }
   }
@@ -10702,6 +11235,78 @@ const Reports = (() => {
   // ══════════════════════════════════════════════════════════
   // 1. PROFIT & LOSS
   // ══════════════════════════════════════════════════════════
+  // ── Drill-down: bind click on drillable rows ─────────────
+  function _bindDrilldown(body) {
+    if (!body) return;
+    body.querySelectorAll('.report-row-drillable').forEach(function(row) {
+      row.style.cursor = 'pointer';
+      row.onclick = function() {
+        var coa    = row.getAttribute('data-coa');
+        var ent    = row.getAttribute('data-entity');
+        var period = row.getAttribute('data-period');
+        _showDrilldown(coa, ent, period);
+      };
+    });
+  }
+
+  function _showDrilldown(coa_code, entity, period) {
+    var coa  = DB.COA.byCode(coa_code);
+    var txns = DB.Transactions.all().filter(function(t) {
+      return t.status === 'Posted' &&
+        t.coa_code === coa_code &&
+        t.period === period &&
+        (entity === 'ALL' || t.entity_id === entity);
+    }).sort(function(a,b){ return b.txn_date.localeCompare(a.txn_date); });
+
+    var modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML =
+      '<div class="modal modal-lg">' +
+        '<div class="modal-header">' +
+          '<h3>Drill-down: ' + coa_code + ' ' + (coa?coa.coa_name:'') + '</h3>' +
+          '<span class="text-muted text-sm">' + Utils.periodLabel(period) + ' · ' + txns.length + ' transaksi</span>' +
+          '<button class="btn btn-ghost btn-sm" id="drill-close">&#10005;</button>' +
+        '</div>' +
+        '<div class="modal-body" style="padding:1rem;overflow-x:auto">' +
+          (txns.length === 0
+            ? '<div class="report-empty-row">Tidak ada transaksi untuk COA ini pada periode ini.</div>'
+            : '<table class="table" style="font-size:.8rem">' +
+                '<thead><tr>' +
+                  '<th>Tanggal</th><th>Deskripsi</th><th>Entity</th><th>BU</th>' +
+                  '<th>Event</th><th>Direction</th><th class="text-right">Jumlah</th>' +
+                '</tr></thead>' +
+                '<tbody>' +
+                txns.map(function(t) {
+                  var bu  = DB.BU.all().find(function(b){ return b.bu_id===t.bu_id; });
+                  var ent = DB.Entities.byId(t.entity_id);
+                  var evt = t.event_id ? DB.EventCatalog.byId(t.event_id) : null;
+                  return '<tr>' +
+                    '<td class="text-sm">' + Utils.formatDate(t.txn_date) + '</td>' +
+                    '<td class="text-sm">' + (t.description||'—') + '</td>' +
+                    '<td class="text-xs text-muted">' + (ent?ent.entity_name:t.entity_id) + '</td>' +
+                    '<td class="text-xs text-muted">' + (bu?bu.bu_name:t.bu_id||'—') + '</td>' +
+                    '<td class="text-xs">' + (evt?'<span class="badge badge-blue">'+evt.event_name+'</span>':t.type_id) + '</td>' +
+                    '<td>' + Utils.directionBadge(t.direction) + '</td>' +
+                    '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
+                  '</tr>';
+                }).join('') +
+                '</tbody>' +
+                '<tfoot><tr>' +
+                  '<td colspan="6" class="text-muted text-sm">Total ' + txns.length + ' transaksi</td>' +
+                  '<td class="text-right mono text-sm"><strong>' +
+                    Utils.formatIDR(txns.reduce(function(s,t){return s+t.amount;},0)) +
+                  '</strong></td>' +
+                '</tr></tfoot>' +
+              '</table>'
+          ) +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+    modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+    document.getElementById('drill-close').onclick = function(){ modal.remove(); };
+  }
+
   function _buildPL(entity, period) {
     const txns = DB.Transactions.all().filter(function(t){
       if (t.status !== 'Posted') return false;
@@ -10801,9 +11406,11 @@ const Reports = (() => {
               return '<div class="cf-subgroup">' +
                 '<div class="cf-subgroup-label">' + sub + '</div>' +
                 items.map(function(e){
-                  return '<div class="report-row">' +
+                  return '<div class="report-row report-row-drillable" data-coa="' + e.coa_code + '" data-entity="' + entity + '" data-period="' + period + '">' +
                     '<div class="report-row-label"><span class="coa-code">' + e.coa_code + '</span>' + e.coa_name + '</div>' +
-                    '<div class="report-row-value text-red">' + Utils.formatIDR(e.total) + '</div>' +
+                    '<div class="report-row-value text-red">' + Utils.formatIDR(e.total) +
+                      ' <span class="drill-icon" title="Lihat transaksi">&#8599;</span>' +
+                    '</div>' +
                   '</div>';
                 }).join('') +
               '</div>';
@@ -11152,11 +11759,18 @@ const Reports = (() => {
   // ══════════════════════════════════════════════════════════
   // 3. CASH FLOW — Metode Langsung (Direct Method)
   // Klasifikasi per SAK EMKM:
-  // Operating  : Revenue & Expense cash transactions (TXN-01, TXN-02)
-  // Financing  : Loan, Receivable, Payable, Equity, Liability Payment
-  // Investing  : Asset purchase/disposal (future)
-  // Excluded   : Treasury Movement (hanya pindah kas, tidak ubah net worth)
+  // ── Cash Flow: Sprint 3 Enhancement ─────────────────────────
+  // Priority: cf_class field (Sprint 1 Rule Engine) → TXN type fallback
+  // cf_class values: Operating | Financing | Investing | Treasury | Excluded
+  // Investing: asset purchases (future — classified via cf_class override)
   // ══════════════════════════════════════════════════════════
+  function _resolveCfClass(t) {
+    // Priority 1: explicit cf_class from Rule Engine (Sprint 1)
+    if (t.cf_class && t.cf_class !== '') return t.cf_class;
+    // Priority 2: legacyCfClass fallback
+    return DB.RuleEngine.legacyCfClass(t.type_id);
+  }
+
   function _buildCF(entity, period) {
     const allTxns = DB.Transactions.all().filter(function(t){
       if (t.status !== 'Posted' || t.period !== period) return false;
@@ -11173,90 +11787,90 @@ const Reports = (() => {
       return cashAcctIds.includes(t.account_id);
     });
 
-    // ── Classification rules ──────────────────────────────
-    // OPERATING: Revenue (TXN-01) or Expense (TXN-02) — core business cash flow
-    // FINANCING: Loan drawdown (TXN-04 Payable), Receivable cash out (TXN-03),
-    //            Liability Payment (TXN-08), Equity Movement (TXN-07),
-    //            CEO Advance (TXN-05)
-    // EXCLUDED:  Treasury (TXN-06) — internal transfer, zero net effect
-    // INVESTING: Not yet implemented (future: asset purchases)
+    // Count transactions using cf_class vs legacy fallback
+    var cfClassCount  = cashTxns.filter(function(t){ return t.cf_class && t.cf_class !== ''; }).length;
+    var legacyCount   = cashTxns.length - cfClassCount;
 
-    var operating = 0, financing = 0, treasury_flow = 0;
-    var op_rows = [], fin_rows = [], excl_rows = [];
+    var operating = 0, financing = 0, investing = 0, treasury_flow = 0;
+    var op_rows = [], inv_rows = [], excl_rows = [];
 
-    // Group financing by sub-category for clarity
+    // Group financing and operating by Event Domain for richer reporting
     var fin_groups = {
-      loan:     { label: 'Pinjaman & Pelunasan', rows: [], total: 0 },
-      equity:   { label: 'Pergerakan Ekuitas',   rows: [], total: 0 },
-      rcv_pay:  { label: 'Piutang & Utang',       rows: [], total: 0 },
-      liab_pay: { label: 'Pembayaran Utang (Liability Payment)', rows: [], total: 0 }
+      loan:     { label: 'Pinjaman & Pelunasan',                  rows: [], total: 0 },
+      equity:   { label: 'Pergerakan Ekuitas',                    rows: [], total: 0 },
+      rcv_pay:  { label: 'Piutang & Utang',                       rows: [], total: 0 },
+      liab_pay: { label: 'Pembayaran Fasilitas Kredit & Cicilan',  rows: [], total: 0 }
+    };
+
+    var op_groups = {
+      revenue:  { label: 'Penerimaan Pendapatan Usaha',   rows: [], total: 0 },
+      expense:  { label: 'Pengeluaran Operasional',        rows: [], total: 0 },
+      other:    { label: 'Operasional Lainnya',            rows: [], total: 0 }
     };
 
     cashTxns.forEach(function(t){
-      var coa = DB.COA.byCode(t.coa_code);
+      var coa     = DB.COA.byCode(t.coa_code);
       if (!coa) return;
+      var cfClass = _resolveCfClass(t);
+      var amt     = t.direction === 'Debit' ? t.amount : -t.amount;
 
-      // Cash amount: positive = inflow, negative = outflow
-      var amt = t.direction === 'Debit' ? t.amount : -t.amount;
+      switch(cfClass) {
 
-      switch(t.type_id) {
-        // ── EXCLUDED: Treasury ──────────────────────────
-        case 'TXN-06':
+        case 'Treasury':
           treasury_flow += amt;
-          excl_rows.push({ label: t.description, amount: amt });
+          excl_rows.push({ label: t.description, amount: amt, type: t.type_id });
           break;
 
-        // ── OPERATING: Revenue & Expense ────────────────
-        case 'TXN-01': // Revenue received in cash
-        case 'TXN-02': // Expense paid in cash
+        case 'Excluded':
+          excl_rows.push({ label: t.description, amount: amt, type: t.type_id });
+          break;
+
+        case 'Operating':
           operating += amt;
-          op_rows.push({
-            label: t.description,
-            coa:   coa.coa_name,
-            amount: amt
-          });
+          if (coa.coa_category === 'Revenue') {
+            op_groups.revenue.total += amt;
+            op_groups.revenue.rows.push({ label: t.description, coa: coa.coa_name, amount: amt, event: t.event_id });
+          } else if (coa.coa_category === 'Expense') {
+            op_groups.expense.total += amt;
+            op_groups.expense.rows.push({ label: t.description, coa: coa.coa_name, amount: amt, event: t.event_id });
+          } else {
+            op_groups.other.total += amt;
+            op_groups.other.rows.push({ label: t.description, coa: coa.coa_name, amount: amt, event: t.event_id });
+          }
           break;
 
-        // ── FINANCING: Loan drawdown / Payable ──────────
-        case 'TXN-04': // Payable — loan drawdown = cash in
-          financing += amt;
-          fin_groups.loan.total += amt;
-          fin_groups.loan.rows.push({ label: t.description, amount: amt });
+        case 'Investing':
+          investing += amt;
+          inv_rows.push({ label: t.description, coa: coa.coa_name, amount: amt });
           break;
 
-        // ── FINANCING: Receivable cash disbursement ──────
-        case 'TXN-03': // Receivable — Friends Loan / CEO Advance cash out
+        case 'Financing':
           financing += amt;
-          fin_groups.rcv_pay.total += amt;
-          fin_groups.rcv_pay.rows.push({ label: t.description, amount: amt });
-          break;
-
-        // ── FINANCING: CEO Advance ───────────────────────
-        case 'TXN-05':
-          financing += amt;
-          fin_groups.rcv_pay.total += amt;
-          fin_groups.rcv_pay.rows.push({ label: t.description + ' [CEO Advance]', amount: amt });
-          break;
-
-        // ── FINANCING: Equity ────────────────────────────
-        case 'TXN-07':
-          financing += amt;
-          fin_groups.equity.total += amt;
-          fin_groups.equity.rows.push({ label: t.description, amount: amt });
-          break;
-
-        // ── FINANCING: Liability Payment ─────────────────
-        case 'TXN-08':
-          financing += amt;
-          fin_groups.liab_pay.total += amt;
-          fin_groups.liab_pay.rows.push({ label: t.description, amount: amt });
+          // Sub-group by TXN type for detail
+          if (t.type_id === 'TXN-04') {
+            fin_groups.loan.total += amt;
+            fin_groups.loan.rows.push({ label: t.description, amount: amt });
+          } else if (t.type_id === 'TXN-03' || t.type_id === 'TXN-05') {
+            fin_groups.rcv_pay.total += amt;
+            fin_groups.rcv_pay.rows.push({ label: t.description + (t.type_id==='TXN-05'?' [CEO Advance]':''), amount: amt });
+          } else if (t.type_id === 'TXN-07') {
+            fin_groups.equity.total += amt;
+            fin_groups.equity.rows.push({ label: t.description, amount: amt });
+          } else if (t.type_id === 'TXN-08' || t.type_id === 'TXN-09') {
+            fin_groups.liab_pay.total += amt;
+            fin_groups.liab_pay.rows.push({ label: t.description, amount: amt });
+          } else {
+            fin_groups.rcv_pay.total += amt;
+            fin_groups.rcv_pay.rows.push({ label: t.description, amount: amt });
+          }
           break;
 
         default:
-          // Unknown type — classify by COA category
+          // Unknown cf_class — classify by COA category as last resort
           if (coa.coa_category === 'Revenue' || coa.coa_category === 'Expense') {
             operating += amt;
-            op_rows.push({ label: t.description + ' [' + t.type_id + ']', coa: coa.coa_name, amount: amt });
+            op_groups.other.total += amt;
+            op_groups.other.rows.push({ label: t.description + ' [' + t.type_id + ']', coa: coa.coa_name, amount: amt });
           } else {
             financing += amt;
             fin_groups.rcv_pay.total += amt;
@@ -11265,12 +11879,15 @@ const Reports = (() => {
       }
     });
 
-    var net = operating + financing;
+    var net = operating + financing + investing;
     var entityName = entity === 'ALL' ? 'Semua Entity' : (DB.Entities.byId(entity) || {entity_name: entity}).entity_name;
 
     function _cfRow(r) {
       return '<div class="report-row">' +
-        '<div class="report-row-label">' + r.label + (r.coa ? ' <span class="coa-code">' + r.coa + '</span>' : '') + '</div>' +
+        '<div class="report-row-label">' + r.label +
+          (r.coa ? ' <span class="coa-code">' + r.coa + '</span>' : '') +
+          (r.event ? ' <span class="text-xs text-faint">[' + r.event + ']</span>' : '') +
+        '</div>' +
         '<div class="report-row-value ' + (r.amount >= 0 ? 'text-green' : 'text-red') + '">' + Utils.formatIDR(r.amount) + '</div>' +
       '</div>';
     }
@@ -11288,6 +11905,17 @@ const Reports = (() => {
     }
 
     var hasFinancing = Object.values(fin_groups).some(function(g){ return g.rows.length > 0; });
+    var hasInvesting = inv_rows.length > 0;
+
+    // cf_class coverage indicator
+    var coverageNote = legacyCount > 0
+      ? '<div class="cf-method-note" style="color:var(--yellow);margin-top:.4rem">' +
+          '&#9432; ' + cfClassCount + ' transaksi menggunakan cf_class Rule Engine, ' +
+          legacyCount + ' transaksi menggunakan klasifikasi legacy.' +
+        '</div>'
+      : (cfClassCount > 0
+          ? '<div class="cf-method-note" style="color:var(--green);margin-top:.4rem">&#10003; Semua ' + cfClassCount + ' transaksi menggunakan cf_class Rule Engine.</div>'
+          : '');
 
     return _reportHeader(
       'Laporan Arus Kas',
@@ -11299,24 +11927,31 @@ const Reports = (() => {
 
     // ── Methodology note ──────────────────────────────────
     '<div class="cf-method-note">' +
-      '<strong>Klasifikasi:</strong> ' +
-      '<span class="badge badge-green">Operasi</span> Revenue & Expense cash &nbsp;|&nbsp; ' +
-      '<span class="badge badge-blue">Pendanaan</span> Pinjaman, Ekuitas, Piutang/Utang &nbsp;|&nbsp; ' +
-      '<span class="badge badge-gray">Excluded</span> Treasury (transfer internal)' +
+      '<strong>Sumber klasifikasi:</strong> ' +
+      '<span class="badge badge-green">cf_class</span> Rule Engine (Sprint 1) &nbsp;|&nbsp; ' +
+      '<span class="badge badge-gray">Legacy</span> TXN type fallback' +
     '</div>' +
+    coverageNote +
 
-    // ── OPERATING ─────────────────────────────────────────
+    // ── A. OPERATING ──────────────────────────────────────
     '<div class="report-section-head">A. AKTIVITAS OPERASI</div>' +
-    (op_rows.length === 0
+    (operating === 0 && Object.values(op_groups).every(function(g){ return g.rows.length===0; })
       ? '<div class="report-empty-row">Tidak ada arus kas operasi periode ini</div>'
-      : op_rows.map(function(r){ return _cfRow(r); }).join('')
+      : Object.keys(op_groups).map(function(key) {
+          var g = op_groups[key];
+          if (g.rows.length === 0) return '';
+          return '<div class="cf-subgroup">' +
+            '<div class="cf-subgroup-label">' + g.label + '</div>' +
+            g.rows.map(function(r){ return _cfRow(r); }).join('') +
+          '</div>';
+        }).join('')
     ) +
     '<div class="report-subtotal">' +
       '<div class="report-row-label"><strong>Net Arus Kas Operasi</strong></div>' +
       '<div class="report-row-value"><strong class="' + (operating >= 0 ? 'text-green' : 'text-red') + '">' + Utils.formatIDR(operating) + '</strong></div>' +
     '</div>' +
 
-    // ── FINANCING ─────────────────────────────────────────
+    // ── B. FINANCING ──────────────────────────────────────
     '<div class="report-section-head" style="margin-top:1.25rem">B. AKTIVITAS PENDANAAN</div>' +
     (!hasFinancing
       ? '<div class="report-empty-row">Tidak ada arus kas pendanaan periode ini</div>'
@@ -11327,15 +11962,19 @@ const Reports = (() => {
       '<div class="report-row-value"><strong class="' + (financing >= 0 ? 'text-green' : 'text-red') + '">' + Utils.formatIDR(financing) + '</strong></div>' +
     '</div>' +
 
-    // ── INVESTING (placeholder) ───────────────────────────
+    // ── C. INVESTING ──────────────────────────────────────
     '<div class="report-section-head" style="margin-top:1.25rem">C. AKTIVITAS INVESTASI</div>' +
-    '<div class="report-empty-row text-muted">Belum ada transaksi investasi (pembelian/penjualan aset tetap)</div>' +
+    (!hasInvesting
+      ? '<div class="report-empty-row text-muted">Belum ada transaksi investasi. ' +
+          'Untuk mencatat pembelian/penjualan aset, gunakan cf_class = Investing saat input transaksi.</div>'
+      : inv_rows.map(function(r){ return _cfRow(r); }).join('')
+    ) +
     '<div class="report-subtotal">' +
       '<div class="report-row-label"><strong>Net Arus Kas Investasi</strong></div>' +
-      '<div class="report-row-value"><strong>Rp 0</strong></div>' +
+      '<div class="report-row-value"><strong class="' + (investing >= 0 ? 'text-green' : 'text-red') + '">' + Utils.formatIDR(investing) + '</strong></div>' +
     '</div>' +
 
-    // ── TREASURY EXCLUDED ─────────────────────────────────
+    // ── D. TREASURY EXCLUDED ──────────────────────────────
     (excl_rows.length > 0
       ? '<div class="report-section-head" style="margin-top:1.25rem;color:var(--text-muted)">D. TREASURY (DIKECUALIKAN)</div>' +
         '<div class="report-empty-row text-muted">Transfer internal antar rekening tidak mempengaruhi net kas. Total pergerakan: ' + Utils.formatIDR(Math.abs(treasury_flow)) + '</div>'
@@ -11951,6 +12590,99 @@ const Reports = (() => {
       '</div>';
   }
 
+  // ── Sprint 4: Laporan per Business Event ─────────────────
+  function _buildEventReport(entity, period) {
+    var entityName = entity==='ALL' ? 'Semua Entity' : (DB.Entities.byId(entity)||{entity_name:entity}).entity_name;
+
+    var txns = DB.Transactions.all().filter(function(t) {
+      return t.status === 'Posted' && t.period === period &&
+        (entity === 'ALL' || t.entity_id === entity) &&
+        t.event_id;
+    });
+
+    if (txns.length === 0) {
+      return _reportHeader('Laporan per Business Event', entityName + ' — ' + Utils.periodLabel(period), '') +
+        '<div class="report-body"><div class="report-empty-row">Tidak ada transaksi dengan Business Event pada periode ini. ' +
+        'Transaksi yang diinput melalui Event Picker (Sprint 1) akan muncul di sini.</div></div>';
+    }
+
+    // Group by event_id
+    var eventGroups = {};
+    txns.forEach(function(t) {
+      if (!eventGroups[t.event_id]) {
+        var evt = DB.EventCatalog.byId(t.event_id);
+        eventGroups[t.event_id] = {
+          event_id:   t.event_id,
+          event_name: evt ? evt.event_name : t.event_id,
+          domain:     evt ? evt.domain : '—',
+          process:    evt ? evt.process : '—',
+          cf_class:   t.cf_class || '—',
+          txns:       [],
+          total:      0,
+          count:      0
+        };
+      }
+      var amt = t.direction === 'Debit' ? t.amount : -t.amount;
+      eventGroups[t.event_id].txns.push(t);
+      eventGroups[t.event_id].total += amt;
+      eventGroups[t.event_id].count++;
+    });
+
+    var groups = Object.values(eventGroups).sort(function(a,b){
+      return b.total - a.total;
+    });
+
+    // Group by domain for display
+    var domains = {};
+    groups.forEach(function(g) {
+      if (!domains[g.domain]) domains[g.domain] = [];
+      domains[g.domain].push(g);
+    });
+
+    var totalAll = groups.reduce(function(s,g){ return s+g.total; }, 0);
+
+    return _reportHeader('Laporan per Business Event', entityName + ' — ' + Utils.periodLabel(period), '') +
+      '<div class="report-body">' +
+
+      '<div class="cf-method-note">' +
+        groups.length + ' Business Events digunakan · ' + txns.length + ' transaksi total' +
+      '</div>' +
+
+      Object.keys(domains).map(function(domain) {
+        return '<div style="margin-bottom:1rem">' +
+          '<div class="report-section-head">' + domain + '</div>' +
+          '<table class="table" style="font-size:.8rem">' +
+            '<thead><tr>' +
+              '<th>Event</th><th>Process</th><th>cf_class</th>' +
+              '<th class="text-right">Transaksi</th><th class="text-right">Net Amount</th>' +
+            '</tr></thead>' +
+            '<tbody>' +
+            domains[domain].map(function(g) {
+              return '<tr class="report-row-drillable" data-event-drill="' + g.event_id + '">' +
+                '<td><strong class="text-sm">' + g.event_name + '</strong></td>' +
+                '<td class="text-muted text-sm">' + g.process + '</td>' +
+                '<td><span class="badge badge-blue">' + g.cf_class + '</span></td>' +
+                '<td class="text-right text-sm">' + g.count + '</td>' +
+                '<td class="text-right mono text-sm ' + (g.total>=0?'text-green':'text-red') + '">' +
+                  (g.total>=0?'+':'') + Utils.formatIDR(g.total) +
+                  ' <span class="drill-icon" title="Lihat detail">&#8599;</span>' +
+                '</td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody>' +
+          '</table>' +
+        '</div>';
+      }).join('') +
+
+      '<div class="report-subtotal">' +
+        '<div class="report-row-label"><strong>Total Net</strong></div>' +
+        '<div class="report-row-value"><strong class="' + (totalAll>=0?'text-green':'text-red') + '">' +
+          (totalAll>=0?'+':'') + Utils.formatIDR(totalAll) + '</strong></div>' +
+      '</div>' +
+
+    '</div>';
+  }
+
   function exportDebtOutstanding() {
     var entity = App.getEntity();
     var debts  = entity === 'ALL' ? DB.DebtRegister.active() : DB.DebtRegister.byEntity(entity).filter(function(d){ return ['Active','Overdue'].includes(d.status); });
@@ -12011,7 +12743,9 @@ const Masters = (() => {
     { id: 'account',       label: 'Akun',             icon: '⊟' },
     { id: 'counterparty',  label: 'Counterparty',     icon: '⊛' },
     { id: 'event_catalog', label: 'Event Catalog',    icon: '◎' },
-    { id: 'event_rules',   label: 'Event Rules',      icon: '⤳' }
+    { id: 'event_rules',   label: 'Event Rules',      icon: '⤳' },
+    { id: 'opening_bal',   label: 'Opening Balance',  icon: '⊞' },
+    { id: 'op_class',      label: 'Klasifikasi Ops',   icon: '⊕' }
   ];
 
   function render() {
@@ -12048,6 +12782,8 @@ const Masters = (() => {
       case 'account':       return _renderAccount();
       case 'event_catalog': return _renderEventCatalog();
       case 'event_rules':   return _renderEventRules();
+      case 'opening_bal':   return _renderOpeningBalance();
+      case 'op_class':      return _renderOpClass();
       case 'counterparty': return _renderCounterparty();
       default: return '';
     }
@@ -12574,8 +13310,263 @@ const Masters = (() => {
     };
   }
 
+  // ── Opening Balance per COA (Sprint 2) ───────────────────
+  var _obFormEntity = null;
+
+  function _renderOpeningBalance() {
+    var entities = DB.Entities.active();
+    var selEnt   = _obFormEntity || (entities[0] ? entities[0].entity_id : null);
+    var bsCOAs   = DB.COA.all().filter(function(c){
+      return ['Asset','Liability','Equity'].includes(c.coa_category) && c.status === 'Active';
+    });
+    var entObs = selEnt ? DB.COABalances.byEntity(selEnt) : [];
+    var obMap  = {};
+    entObs.forEach(function(ob){ obMap[ob.coa_code] = ob; });
+
+    var totalAsset  = entObs.filter(function(ob){ var c=DB.COA.byCode(ob.coa_code); return c&&c.coa_category==='Asset'; }).reduce(function(s,ob){return s+ob.balance;},0);
+    var totalLiab   = entObs.filter(function(ob){ var c=DB.COA.byCode(ob.coa_code); return c&&c.coa_category==='Liability'; }).reduce(function(s,ob){return s+ob.balance;},0);
+    var totalEquity = entObs.filter(function(ob){ var c=DB.COA.byCode(ob.coa_code); return c&&c.coa_category==='Equity'; }).reduce(function(s,ob){return s+ob.balance;},0);
+    var balanced    = Math.abs(totalAsset-(totalLiab+totalEquity)) < 1;
+
+    return '<div class="master-section">' +
+      '<div class="master-section-header">' +
+        '<h3>Opening Balance per COA</h3>' +
+        '<div class="text-muted text-sm" style="margin-top:.3rem">Posisi awal neraca per COA per Entity. Memerlukan Forced Override Level 3 — pastikan nilai sudah diverifikasi.</div>' +
+      '</div>' +
+      '<div class="form-row" style="margin-bottom:1rem">' +
+        '<div class="form-group">' +
+          '<label>Entity</label>' +
+          '<select class="form-input" id="ob-entity-sel" onchange="Masters.onOBEntityChange()">' +
+            entities.map(function(e){ return '<option value="'+e.entity_id+'"'+(e.entity_id===selEnt?' selected':'')+'>'+e.entity_name+'</option>'; }).join('') +
+          '</select>' +
+        '</div>' +
+        (entObs.length>0 ? '<div class="form-group" style="align-self:flex-end"><div class="'+(balanced?'balance-check ok':'balance-check warn')+'">'+(balanced?'&#10003; Opening Balance seimbang':'&#9888; Tidak seimbang — selisih '+Utils.formatIDR(Math.abs(totalAsset-(totalLiab+totalEquity))))+'</div></div>' : '') +
+      '</div>' +
+      '<div style="overflow-x:auto"><table class="table" style="font-size:.8rem">' +
+        '<thead><tr><th>COA</th><th>Nama</th><th>Kategori</th><th class="text-right">Opening Balance</th><th>As of Date</th><th>Catatan</th><th>Aksi</th></tr></thead>' +
+        '<tbody>' +
+        (function(){
+          var rows='';
+          ['Asset','Liability','Equity'].forEach(function(cat){
+            rows+='<tr class="compare-subhead"><td colspan="7">'+cat.toUpperCase()+'</td></tr>';
+            bsCOAs.filter(function(c){return c.coa_category===cat;}).forEach(function(coa){
+              var ob=obMap[coa.coa_code];
+              if(ob){
+                rows+='<tr><td class="mono text-sm text-muted">'+coa.coa_code+'</td><td class="text-sm">'+coa.coa_name+'</td><td><span class="badge badge-blue">'+cat+'</span></td>'+
+                  '<td class="text-right mono text-sm">'+Utils.formatIDR(ob.balance)+'</td>'+
+                  '<td class="text-sm text-muted">'+Utils.formatDate(ob.as_of_date)+'</td>'+
+                  '<td class="text-sm text-muted">'+(ob.notes||'—')+'</td>'+
+                  '<td><div class="row-actions">'+
+                    '<button class="btn-action" data-ob-edit="'+ob.ob_id+'" title="Edit">&#9998;</button>'+
+                    '<button class="btn-action text-red" data-ob-del="'+ob.ob_id+'" title="Hapus">&#128465;</button>'+
+                  '</div></td></tr>';
+              } else {
+                rows+='<tr class="ob-row-empty"><td class="mono text-sm text-muted">'+coa.coa_code+'</td><td class="text-sm">'+coa.coa_name+'</td><td><span class="badge badge-blue">'+cat+'</span></td>'+
+                  '<td class="text-right text-muted text-sm">—</td><td class="text-muted text-sm">—</td><td></td>'+
+                  '<td><button class="btn btn-ghost btn-sm" data-ob-add="'+coa.coa_code+'" data-ob-entity="'+selEnt+'">+ Tambah</button></td></tr>';
+              }
+            });
+          });
+          return rows;
+        })() +
+        '</tbody></table></div>' +
+      (entObs.length>0 ? '<div class="table-footer" style="margin-top:.5rem"><span class="text-muted text-sm">'+entObs.length+' COA dengan opening balance</span><span class="text-sm">Aset: <span class="mono text-blue">'+Utils.formatIDR(totalAsset)+'</span> · Kewajiban+Ekuitas: <span class="mono">'+Utils.formatIDR(totalLiab+totalEquity)+'</span></span></div>' : '') +
+      '<div id="ob-form-area"></div>' +
+    '</div>';
+  }
+
+  function onOBEntityChange() {
+    _obFormEntity = (document.getElementById('ob-entity-sel')||{}).value;
+    var mc = document.getElementById('master-content');
+    if (mc) { mc.innerHTML = _renderOpeningBalance(); _bindOBEvents(); }
+  }
+
+  function _bindOBEvents() {
+    var mc = document.getElementById('master-content');
+    if (!mc) return;
+    mc.onclick = function(e) {
+      var addBtn = e.target.closest('[data-ob-add]');
+      var editBtn= e.target.closest('[data-ob-edit]');
+      var delBtn = e.target.closest('[data-ob-del]');
+      if (addBtn) _showOBForm(addBtn.getAttribute('data-ob-add'), addBtn.getAttribute('data-ob-entity'), null);
+      if (editBtn) { var ob=DB.COABalances.byId(editBtn.getAttribute('data-ob-edit')); if(ob) _showOBForm(ob.coa_code,ob.entity_id,ob); }
+      if (delBtn) {
+        Utils.confirm('Hapus Opening Balance ini?', function(){
+          DB.COABalances.delete(delBtn.getAttribute('data-ob-del'));
+          mc.innerHTML = _renderOpeningBalance(); _bindOBEvents();
+        });
+      }
+    };
+  }
+
+  function _showOBForm(coa_code, entity_id, existing) {
+    var coa  = DB.COA.byCode(coa_code);
+    var ent  = DB.Entities.byId(entity_id);
+    var area = document.getElementById('ob-form-area');
+    if (!area) return;
+    area.innerHTML =
+      '<div class="ob-form-panel">' +
+        '<div class="ob-form-title">'+(existing?'Edit':'Tambah')+' Opening Balance — '+coa_code+' '+(coa?coa.coa_name:'')+' ('+(ent?ent.entity_name:entity_id)+')</div>' +
+        '<div class="override-warning override-forced">&#9940; Forced Override Level 3 — Mempengaruhi seluruh Balance Sheet. Pastikan nilai sudah diverifikasi.</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group"><label>Nilai Opening Balance (Rp) <span class="required">*</span></label>' +
+            '<input class="form-input" type="number" id="ob-balance" value="'+(existing?existing.balance:'')+'" placeholder="0">' +
+            '<small class="form-hint">Normal balance '+(coa?coa.normal_balance:'')+' — masukkan nilai positif</small></div>' +
+          '<div class="form-group"><label>As of Date <span class="required">*</span></label>' +
+            '<input class="form-input" type="date" id="ob-date" value="'+(existing?existing.as_of_date:Utils.today())+'">' +
+            '<small class="form-hint">Tanggal posisi awal ini berlaku</small></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Catatan / Sumber Data <span class="required">*</span></label>' +
+          '<input class="form-input" id="ob-notes" value="'+(existing?(existing.notes||''):'')+'" placeholder="Contoh: Saldo buku bank per 31 Des 2025, Laporan keuangan audited, dll">' +
+          '<small class="form-hint">Wajib diisi — audit trail untuk Forced Override</small></div>' +
+        '<div id="ob-form-errors" class="error-box" style="display:none"></div>' +
+        '<div class="form-actions-bar">' +
+          '<button class="btn btn-ghost" id="ob-cancel-btn">Batal</button>' +
+          '<button class="btn btn-primary" id="ob-save-btn">Simpan Opening Balance</button>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('ob-cancel-btn').onclick = function(){ area.innerHTML=''; };
+    document.getElementById('ob-save-btn').onclick   = function(){ _saveOB(coa_code, entity_id, existing?existing.ob_id:null); };
+    area.scrollIntoView({behavior:'smooth'});
+  }
+
+  function _saveOB(coa_code, entity_id, existing_ob_id) {
+    var balance = parseFloat((document.getElementById('ob-balance')||{}).value)||0;
+    var date    = (document.getElementById('ob-date')  ||{}).value||'';
+    var notes   = (document.getElementById('ob-notes') ||{}).value||'';
+    var errBox  = document.getElementById('ob-form-errors');
+    var errors  = [];
+    if (!date)  errors.push('As of Date wajib diisi');
+    if (!notes) errors.push('Catatan/sumber data wajib diisi (Forced Override)');
+    if (balance < 0) errors.push('Nilai tidak boleh negatif');
+    if (errors.length>0) { if(errBox){errBox.style.display='block';errBox.innerHTML='<ul>'+errors.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul>';} return; }
+    if (errBox) errBox.style.display='none';
+    var coa = DB.COA.byCode(coa_code);
+    DB.COABalances.save({
+      ob_id:          existing_ob_id||('OB-'+entity_id+'-'+coa_code+'-'+Date.now()),
+      entity_id:      entity_id,
+      coa_code:       coa_code,
+      as_of_date:     date,
+      balance:        balance,
+      normal_balance: coa?coa.normal_balance:'Debit',
+      notes:          notes,
+      created_at:     Utils.today(),
+      created_by:     'User',
+      override_level: 3
+    });
+    Utils.toast('Opening Balance disimpan');
+    var mc = document.getElementById('master-content');
+    if (mc) { mc.innerHTML = _renderOpeningBalance(); _bindOBEvents(); }
+  }
+
+  // ── Operational Classification CRUD ─────────────────────
+  function _renderOpClass() {
+    var classes = DB.OpClasses ? DB.OpClasses.all() : [];
+    var domains = {};
+    classes.forEach(function(c){
+      var d = c.domain || 'Lainnya';
+      if (!domains[d]) domains[d] = [];
+      domains[d].push(c);
+    });
+
+    return '<div class="master-section">' +
+      '<div class="master-section-header">' +
+        '<h3>Klasifikasi Operasional</h3>' +
+        '<div class="text-muted text-sm" style="margin-top:.3rem">' +
+          'Metadata manajemen opsional per transaksi. Tidak mempengaruhi akuntansi. ' +
+          'Digunakan untuk analisis profitabilitas dan laporan operasional per kategori biaya/pendapatan.' +
+        '</div>' +
+      '</div>' +
+      '<div class="master-header-row">' +
+        '<button class="btn btn-primary btn-sm" id="op-class-add-btn">+ Tambah Klasifikasi</button>' +
+      '</div>' +
+      '<div id="op-class-form-area"></div>' +
+      Object.keys(domains).map(function(domain) {
+        return '<div style="margin-bottom:1rem">' +
+          '<div class="report-section-head">' + domain + '</div>' +
+          '<table class="table" style="font-size:.8rem">' +
+            '<thead><tr><th>ID</th><th>Nama</th><th>Deskripsi</th><th>Status</th><th>Aksi</th></tr></thead>' +
+            '<tbody>' +
+            domains[domain].map(function(c) {
+              return '<tr>' +
+                '<td class="mono text-sm text-muted">' + c.class_id + '</td>' +
+                '<td class="text-sm font-medium">' + c.name + '</td>' +
+                '<td class="text-xs text-muted">' + (c.description||'—') + '</td>' +
+                '<td><span class="badge '+(c.status==='Active'?'badge-green':'badge-gray')+'">'+c.status+'</span></td>' +
+                '<td><div class="row-actions">' +
+                  '<button class="btn-action" data-opc-edit="'+c.class_id+'" title="Edit">&#9998;</button>' +
+                  '<button class="btn-action text-red" data-opc-del="'+c.class_id+'" title="Hapus">&#128465;</button>' +
+                '</div></td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody>' +
+          '</table>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  function _bindOpClassEvents() {
+    var mc = document.getElementById('master-content');
+    if (!mc) return;
+    var addBtn = mc.querySelector('#op-class-add-btn');
+    if (addBtn) addBtn.onclick = function(){ _showOpClassForm(null); };
+    mc.querySelectorAll('[data-opc-edit]').forEach(function(btn){
+      btn.onclick = function(){
+        var cls = DB.OpClasses.byId(btn.getAttribute('data-opc-edit'));
+        if (cls) _showOpClassForm(cls);
+      };
+    });
+    mc.querySelectorAll('[data-opc-del]').forEach(function(btn){
+      btn.onclick = function(){
+        var result = DB.OpClasses.delete(btn.getAttribute('data-opc-del'));
+        if (result && result.error) { Utils.toast(result.error, 'error'); return; }
+        Utils.toast('Klasifikasi dihapus');
+        mc.innerHTML = _renderOpClass(); _bindOpClassEvents();
+      };
+    });
+  }
+
+  function _showOpClassForm(existing) {
+    var area = document.getElementById('op-class-form-area');
+    if (!area) return;
+    var domains = ['Revenue','Expense','Treasury','Debt','Receivable','Equity'];
+    area.innerHTML =
+      '<div class="ob-form-panel" style="margin-bottom:1rem">' +
+        '<div class="ob-form-title">'+(existing?'Edit':'Tambah')+' Klasifikasi Operasional</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group"><label>Nama <span class="required">*</span></label>' +
+            '<input class="form-input" id="opc-name" value="'+(existing?existing.name:'')+'" placeholder="Nama klasifikasi"></div>' +
+          '<div class="form-group"><label>Domain</label>' +
+            '<select class="form-input" id="opc-domain">' +
+              '<option value="">— Semua Domain —</option>' +
+              domains.map(function(d){ return '<option value="'+d+'"'+(existing&&existing.domain===d?' selected':'')+'>'+d+'</option>'; }).join('') +
+            '</select></div>' +
+        '</div>' +
+        '<div class="form-group"><label>Deskripsi</label>' +
+          '<input class="form-input" id="opc-desc" value="'+(existing?(existing.description||''):'')+'" placeholder="Penjelasan singkat"></div>' +
+        '<div class="form-actions-bar">' +
+          '<button class="btn btn-ghost" id="opc-cancel">Batal</button>' +
+          '<button class="btn btn-primary" id="opc-save">Simpan</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('opc-cancel').onclick = function(){ area.innerHTML=''; };
+    document.getElementById('opc-save').onclick   = function(){
+      var name = (document.getElementById('opc-name')||{}).value||'';
+      if (!name) { Utils.toast('Nama wajib diisi','error'); return; }
+      var domain = (document.getElementById('opc-domain')||{}).value||null;
+      var desc   = (document.getElementById('opc-desc')||{}).value||'';
+      var id     = existing ? existing.class_id : 'OPC-' + Date.now();
+      DB.OpClasses.save({ class_id:id, domain:domain||null, name:name, description:desc, status:'Active' });
+      Utils.toast('Klasifikasi disimpan');
+      var mc = document.getElementById('master-content');
+      if (mc) { mc.innerHTML = _renderOpClass(); _bindOpClassEvents(); }
+    };
+  }
+
   return {
-    render, switchTab,
+    render, switchTab, onOBEntityChange,
     addEntity, editEntity, toggleEntity, deleteEntity,
     addBU, editBU, toggleBU, deleteBU, filterBU,
     addActivity, editActivity, toggleActivity, deleteActivity,
@@ -12638,6 +13629,28 @@ const SettingsModule = (() => {
             <button class="btn btn-ghost" onclick="SettingsModule.exportData()">Export JSON</button>
             <button class="btn btn-ghost" onclick="SettingsModule.importData()">Import JSON</button>
           </div>
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">&#128274; Period Lock</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Kunci periode agar tidak ada transaksi baru atau editan yang bisa masuk. Berguna setelah closing bulanan.
+            Hanya Forced Override (Level 3) yang bisa melewati kunci ini.
+          </p>
+          <div id="period-lock-list" style="margin-bottom:.75rem"></div>
+          <div class="form-row" style="margin-bottom:.75rem">
+            <div class="form-group">
+              <label>Kunci Periode</label>
+              <input class="form-input" type="month" id="lock-period-input">
+            </div>
+            <div class="form-group">
+              <label>Alasan</label>
+              <input class="form-input" id="lock-period-reason" placeholder="Contoh: Closing Juni 2026">
+            </div>
+          </div>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap">
+            <button class="btn btn-secondary" onclick="SettingsModule.lockPeriod()">&#128274; Kunci Periode</button>
+            <button class="btn btn-ghost" onclick="SettingsModule.unlockPeriod()">&#128275; Buka Kunci</button>
+          </div>
+
           <hr style="margin:1.5rem 0;border-color:var(--border)">
           <h4 style="margin-bottom:.5rem">&#9729; Supabase Sync</h4>
           <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
@@ -12789,6 +13802,23 @@ const SettingsModule = (() => {
     input.click();
   }
 
+  function lockPeriod() {
+    var period = (document.getElementById('lock-period-input')||{}).value || '';
+    var reason = (document.getElementById('lock-period-reason')||{}).value || '';
+    if (!period) { Utils.toast('Pilih periode yang akan dikunci', 'error'); return; }
+    DB.Settings.lockPeriod(period, reason);
+    Utils.toast('Periode ' + Utils.periodLabel(period) + ' berhasil dikunci');
+    render(); // re-render to show updated list
+  }
+
+  function unlockPeriod() {
+    var period = (document.getElementById('lock-period-input')||{}).value || '';
+    if (!period) { Utils.toast('Pilih periode yang akan dibuka', 'error'); return; }
+    DB.Settings.unlockPeriod(period);
+    Utils.toast('Periode ' + Utils.periodLabel(period) + ' berhasil dibuka');
+    render();
+  }
+
   async function checkSync() {
     var el = document.getElementById('sync-health-result');
     if (el) el.innerHTML = '<span class="text-muted">&#9679; Mengecek...</span>';
@@ -12810,7 +13840,421 @@ const SettingsModule = (() => {
         (result.debt_register.remote_has_data ? ' · Remote: ada data' : ' · Remote: kosong') + '</span>';
   }
 
-  return { render, save, exportData, importData, migrateTxnIds, checkSync };
+  return { render, save, exportData, importData, migrateTxnIds, checkSync, lockPeriod, unlockPeriod };
+})();
+
+// ============================================================
+// FINANCE OS — BANK RECONCILIATION MODULE (Sprint 7)
+// ============================================================
+
+const Reconciliation = (() => {
+
+  var _selectedAccountId = null;
+
+  function render() {
+    var body     = document.getElementById('page-body');
+    var entity   = App.getEntity();
+    var accounts = DB.Accounts.all().filter(function(a){
+      return ['Bank','E-Wallet','Platform'].includes(a.account_type) &&
+        a.status === 'Active' &&
+        (entity === 'ALL' || a.entity_id === entity);
+    });
+
+    body.innerHTML =
+      '<div class="rec-page">' +
+        '<div class="rec-header">' +
+          '<h2>Bank Reconciliation</h2>' +
+          '<p class="text-muted text-sm" style="margin-top:.25rem">' +
+            'Cocokkan transaksi di sistem dengan mutasi rekening bank / e-wallet.' +
+          '</p>' +
+        '</div>' +
+
+        // Account selector
+        '<div class="form-row" style="margin-bottom:1rem">' +
+          '<div class="form-group">' +
+            '<label>Pilih Rekening</label>' +
+            '<select class="form-input" id="rec-account-sel" onchange="Reconciliation.onAccountChange()">' +
+              '<option value="">— Pilih Rekening —</option>' +
+              accounts.map(function(a){
+                return '<option value="' + a.account_id + '">' + a.account_name + ' (' + a.account_type + ')</option>';
+              }).join('') +
+            '</select>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Tanggal Saldo Rekening</label>' +
+            '<input class="form-input" type="date" id="rec-stmt-date" value="' + Utils.today() + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Saldo di Rekening Bank (Rp)</label>' +
+            '<input class="form-input" type="number" id="rec-stmt-balance" placeholder="0">' +
+            '<small class="form-hint">Saldo sesuai mutasi rekening / e-wallet</small>' +
+          '</div>' +
+          '<div class="form-group" style="align-self:flex-end">' +
+            '<button class="btn btn-primary" onclick="Reconciliation.loadTransactions()">Muat Transaksi</button>' +
+          '</div>' +
+        '</div>' +
+
+        '<div id="rec-history">' + _renderHistory(entity) + '</div>' +
+        '<div id="rec-work-area"></div>' +
+      '</div>';
+  }
+
+  function _renderHistory(entity) {
+    var recs = DB.Reconciliations.all()
+      .filter(function(r){ return entity==='ALL' || r.entity_id===entity; })
+      .sort(function(a,b){ return b.created_at.localeCompare(a.created_at); })
+      .slice(0,5);
+    if (recs.length === 0) return '';
+    return '<div class="card" style="margin-bottom:.75rem">' +
+      '<div class="card-header"><div class="card-title">Riwayat Rekonsiliasi Terakhir</div></div>' +
+      '<table class="table" style="font-size:.8rem">' +
+        '<thead><tr><th>Rekening</th><th>Tgl Statement</th><th>Saldo Statement</th><th>Saldo Sistem</th><th>Selisih</th><th>Status</th></tr></thead>' +
+        '<tbody>' +
+        recs.map(function(r) {
+          var acct = DB.Accounts.byId(r.account_id);
+          var diff = r.statement_balance - r.system_balance;
+          return '<tr>' +
+            '<td class="text-sm">' + (acct?acct.account_name:r.account_id) + '</td>' +
+            '<td class="text-sm">' + Utils.formatDate(r.statement_date) + '</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(r.statement_balance) + '</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(r.system_balance) + '</td>' +
+            '<td class="text-right mono text-sm ' + (Math.abs(diff)<1?'text-green':'text-red') + '">' + Utils.formatIDR(diff) + '</td>' +
+            '<td><span class="badge ' + (r.status==='Reconciled'?'badge-green':'badge-yellow') + '">' + r.status + '</span></td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
+  }
+
+  function onAccountChange() {
+    _selectedAccountId = (document.getElementById('rec-account-sel')||{}).value || null;
+  }
+
+  function loadTransactions() {
+    var accountId  = (document.getElementById('rec-account-sel')||{}).value || '';
+    var stmtDate   = (document.getElementById('rec-stmt-date')||{}).value || '';
+    var stmtBalance= parseFloat((document.getElementById('rec-stmt-balance')||{}).value)||0;
+    var area       = document.getElementById('rec-work-area');
+
+    if (!accountId || !stmtDate) { Utils.toast('Pilih rekening dan tanggal statement', 'error'); return; }
+
+    var txns     = DB.Reconciliations.unreconciled(accountId, stmtDate);
+    var acct     = DB.Accounts.byId(accountId);
+    var sysTotal = txns.reduce(function(s,t){ return s + (t.direction==='Debit'?t.amount:-t.amount); }, 0);
+    var diff     = stmtBalance - sysTotal;
+
+    area.innerHTML =
+      '<div class="card">' +
+        '<div class="card-header">' +
+          '<div class="card-title">Rekonsiliasi: ' + (acct?acct.account_name:'') + ' — ' + Utils.formatDate(stmtDate) + '</div>' +
+        '</div>' +
+
+        // Balance summary
+        '<div class="rec-balance-row">' +
+          '<div class="rec-bal-item">' +
+            '<div class="rec-bal-label">Saldo di Rekening Bank</div>' +
+            '<div class="rec-bal-val">' + Utils.formatIDR(stmtBalance) + '</div>' +
+          '</div>' +
+          '<div class="rec-bal-item">' +
+            '<div class="rec-bal-label">Saldo di Sistem</div>' +
+            '<div class="rec-bal-val">' + Utils.formatIDR(sysTotal) + '</div>' +
+          '</div>' +
+          '<div class="rec-bal-item ' + (Math.abs(diff)<1?'rec-bal-ok':'rec-bal-diff') + '">' +
+            '<div class="rec-bal-label">Selisih</div>' +
+            '<div class="rec-bal-val">' + Utils.formatIDR(diff) + '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // Transaction list with checkboxes
+        (txns.length === 0
+          ? '<div class="debt-empty">Tidak ada transaksi yang belum direkonsiliasi untuk rekening ini.</div>'
+          : '<div style="overflow-x:auto"><table class="table" style="font-size:.8rem">' +
+              '<thead><tr>' +
+                '<th><input type="checkbox" id="rec-chk-all" onchange="Reconciliation.toggleAll(this.checked)"></th>' +
+                '<th>Tanggal</th><th>Deskripsi</th><th>Event</th>' +
+                '<th class="text-right">Debit</th><th class="text-right">Kredit</th>' +
+              '</tr></thead>' +
+              '<tbody>' +
+              txns.map(function(t) {
+                var evt = t.event_id ? DB.EventCatalog.byId(t.event_id) : null;
+                return '<tr>' +
+                  '<td><input type="checkbox" class="rec-txn-chk" data-txn-id="' + t.txn_id + '" checked></td>' +
+                  '<td class="text-sm">' + Utils.formatDate(t.txn_date) + '</td>' +
+                  '<td class="text-sm">' + (t.description||'—') + '</td>' +
+                  '<td class="text-xs">' + (evt?'<span class="badge badge-blue">'+evt.event_name+'</span>':t.type_id) + '</td>' +
+                  '<td class="text-right mono text-sm">' + (t.direction==='Debit'?Utils.formatIDR(t.amount):'—') + '</td>' +
+                  '<td class="text-right mono text-sm">' + (t.direction==='Credit'?Utils.formatIDR(t.amount):'—') + '</td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody></table></div>'
+        ) +
+
+        '<div id="rec-errors" class="error-box" style="display:none"></div>' +
+        '<div class="form-actions-bar" style="margin-top:.75rem">' +
+          '<button class="btn btn-ghost" onclick="Reconciliation.render()">Batal</button>' +
+          '<button class="btn btn-primary" ' +
+            'data-account="' + accountId + '" data-date="' + stmtDate + '" data-balance="' + stmtBalance + '" ' +
+            'id="rec-save-btn">&#10003; Simpan Rekonsiliasi</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('rec-save-btn').onclick = function() {
+      saveReconciliation(accountId, stmtDate, stmtBalance, sysTotal);
+    };
+  }
+
+  function toggleAll(checked) {
+    document.querySelectorAll('.rec-txn-chk').forEach(function(c){ c.checked = checked; });
+  }
+
+  function saveReconciliation(accountId, stmtDate, stmtBalance, sysTotal) {
+    var selectedTxnIds = [];
+    document.querySelectorAll('.rec-txn-chk:checked').forEach(function(c){
+      selectedTxnIds.push(c.getAttribute('data-txn-id'));
+    });
+
+    var recId = 'REC-' + accountId + '-' + stmtDate.replace(/-/g,'');
+    var entity = DB.Accounts.byId(accountId);
+    var diff   = stmtBalance - sysTotal;
+    var status = Math.abs(diff) < 1 ? 'Reconciled' : 'Partial';
+
+    DB.Reconciliations.save({
+      rec_id:            recId,
+      account_id:        accountId,
+      entity_id:         entity ? entity.entity_id : null,
+      statement_date:    stmtDate,
+      statement_balance: stmtBalance,
+      system_balance:    sysTotal,
+      difference:        diff,
+      matched_txn_ids:   selectedTxnIds,
+      status:            status,
+      created_at:        Utils.today(),
+      notes:             null
+    });
+
+    DB.Reconciliations.markReconciled(selectedTxnIds, recId);
+    Utils.toast('Rekonsiliasi disimpan — ' + selectedTxnIds.length + ' transaksi dicocokkan. Status: ' + status);
+    render();
+  }
+
+  return { render, onAccountChange, loadTransactions, toggleAll };
+
+})();
+
+// ============================================================
+// FINANCE OS — FIXED ASSETS MODULE (Sprint 7)
+// ============================================================
+
+const FixedAssetsModule = (() => {
+
+  function render() {
+    var body   = document.getElementById('page-body');
+    var entity = App.getEntity();
+    var assets = entity && entity !== 'ALL'
+      ? DB.FixedAssets.all().filter(function(a){ return a.entity_id === entity; })
+      : DB.FixedAssets.all();
+
+    var summary = DB.FixedAssets.summary(entity);
+
+    body.innerHTML =
+      '<div class="debt-page">' +
+
+        '<div class="debt-toolbar">' +
+          '<div class="debt-toolbar-left">' +
+            '<button class="btn btn-primary" onclick="FixedAssetsModule.showNew()">+ Aset Baru</button>' +
+          '</div>' +
+        '</div>' +
+
+        // Summary cards
+        '<div class="debt-kpi-grid" style="margin-bottom:.75rem">' +
+          _kpi('Total Aset', summary.count + ' item', 'kpi-blue', '&#9632;') +
+          _kpi('Nilai Perolehan', Utils.formatIDR(summary.total_cost), 'kpi-blue', '&#8679;') +
+          _kpi('Nilai Buku', Utils.formatIDR(summary.total_book_val), 'kpi-green', '&#9651;') +
+          _kpi('Akum. Penyusutan', Utils.formatIDR(summary.total_accum_dep), 'kpi-red', '&#8681;') +
+        '</div>' +
+
+        '<div id="fa-form-area"></div>' +
+
+        (assets.length === 0
+          ? '<div class="card"><div class="debt-empty" style="padding:2rem">' +
+              '<div style="font-size:2rem;margin-bottom:.5rem">&#9632;</div>' +
+              '<p>Belum ada aset tetap yang tercatat.</p>' +
+              '<button class="btn btn-primary" onclick="FixedAssetsModule.showNew()">+ Tambah Aset</button>' +
+            '</div></div>'
+          : '<div style="overflow-x:auto"><table class="table" style="font-size:.8rem">' +
+              '<thead><tr>' +
+                '<th>ID</th><th>Nama Aset</th><th>Kategori</th><th>Tgl Perolehan</th>' +
+                '<th class="text-right">Nilai Perolehan</th><th class="text-right">Nilai Buku</th>' +
+                '<th>Metode</th><th>Sisa (bln)</th><th>Status</th><th>Aksi</th>' +
+              '</tr></thead>' +
+              '<tbody>' +
+              assets.map(function(a) {
+                var bv       = DB.FixedAssets.bookValue(a);
+                var today    = new Date().toISOString().split('T')[0];
+                var acq      = a.acquisition_date || today;
+                var elapsed  = Math.floor((new Date(today)-new Date(acq))/(30.44*86400000));
+                var remaining= Math.max(0,(a.useful_life_months||0)-elapsed);
+                return '<tr>' +
+                  '<td class="mono text-sm text-muted">' + a.asset_id + '</td>' +
+                  '<td class="text-sm font-medium">' + a.asset_name + '</td>' +
+                  '<td class="text-xs text-muted">' + (a.category||'—') + '</td>' +
+                  '<td class="text-sm">' + Utils.formatDate(a.acquisition_date) + '</td>' +
+                  '<td class="text-right mono text-sm">' + Utils.formatIDR(a.acquisition_cost) + '</td>' +
+                  '<td class="text-right mono text-sm ' + (bv<a.acquisition_cost*0.1?'text-yellow':'text-green') + '">' + Utils.formatIDR(bv) + '</td>' +
+                  '<td class="text-xs">' + (a.depreciation_method||'—') + '</td>' +
+                  '<td class="text-center text-sm">' + remaining + '</td>' +
+                  '<td><span class="badge '+(a.status==='Active'?'badge-green':'badge-gray')+'">'+a.status+'</span></td>' +
+                  '<td><div class="row-actions">' +
+                    '<button class="btn-action" data-fa-edit="'+a.asset_id+'" title="Edit">&#9998;</button>' +
+                  '</div></td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody></table></div>'
+        ) +
+      '</div>';
+
+    // Bind edit buttons
+    document.querySelectorAll('[data-fa-edit]').forEach(function(btn) {
+      btn.onclick = function() { showEdit(DB.FixedAssets.byId(btn.getAttribute('data-fa-edit'))); };
+    });
+  }
+
+  function _kpi(label, value, cls, icon) {
+    return '<div class="debt-kpi-card ' + cls + '">' +
+      '<div class="debt-kpi-icon">' + icon + '</div>' +
+      '<div class="debt-kpi-label">' + label + '</div>' +
+      '<div class="debt-kpi-value">' + value + '</div>' +
+    '</div>';
+  }
+
+  function showNew() { _renderForm(null); }
+  function showEdit(asset) { _renderForm(asset); }
+
+  function _renderForm(existing) {
+    var area     = document.getElementById('fa-form-area');
+    var entities = DB.Entities.active();
+
+    area.innerHTML =
+      '<div class="ob-form-panel" style="margin-bottom:1rem">' +
+        '<div class="ob-form-title">'+(existing?'Edit':'Tambah')+' Aset Tetap</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group"><label>Nama Aset <span class="required">*</span></label>' +
+            '<input class="form-input" id="fa-name" value="'+(existing?existing.asset_name:'')+'" placeholder="Laptop, Kendaraan, Printer..."></div>' +
+          '<div class="form-group"><label>Entity <span class="required">*</span></label>' +
+            '<select class="form-input" id="fa-entity">' +
+              entities.map(function(e){ return '<option value="'+e.entity_id+'"'+(existing&&existing.entity_id===e.entity_id?' selected':'')+'>'+e.entity_name+'</option>'; }).join('') +
+            '</select></div>' +
+          '<div class="form-group"><label>Kategori</label>' +
+            '<select class="form-input" id="fa-category">' +
+              ['Peralatan','Kendaraan','Furnitur','Bangunan','Teknologi','Lainnya'].map(function(c){
+                return '<option value="'+c+'"'+(existing&&existing.category===c?' selected':'')+'>'+c+'</option>';
+              }).join('') +
+            '</select></div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group"><label>Tanggal Perolehan <span class="required">*</span></label>' +
+            '<input class="form-input" type="date" id="fa-date" value="'+(existing?existing.acquisition_date:Utils.today())+'"></div>' +
+          '<div class="form-group"><label>Nilai Perolehan (Rp) <span class="required">*</span></label>' +
+            '<input class="form-input" type="number" id="fa-cost" value="'+(existing?existing.acquisition_cost:'')+'" placeholder="0"></div>' +
+          '<div class="form-group"><label>Nilai Residu (Rp)</label>' +
+            '<input class="form-input" type="number" id="fa-residual" value="'+(existing?(existing.residual_value||0):0)+'" placeholder="0"></div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group"><label>Metode Penyusutan</label>' +
+            '<select class="form-input" id="fa-method">' +
+              '<option value="Straight_Line"'+(existing&&existing.depreciation_method==='Straight_Line'?' selected':'')+'>Garis Lurus (Straight Line)</option>' +
+              '<option value="None"'+(existing&&existing.depreciation_method==='None'?' selected':'')+'>Tidak Disusutkan</option>' +
+            '</select></div>' +
+          '<div class="form-group"><label>Masa Manfaat (bulan)</label>' +
+            '<input class="form-input" type="number" id="fa-life" value="'+(existing?(existing.useful_life_months||0):60)+'" placeholder="60"></div>' +
+          '<div class="form-group"><label>Nomor Referensi</label>' +
+            '<input class="form-input" id="fa-ref" value="'+(existing?(existing.reference_no||''):'')+'" placeholder="Nomor faktur, BPKB, dll"></div>' +
+        '</div>' +
+        '<div id="fa-errors" class="error-box" style="display:none"></div>' +
+        '<div class="form-actions-bar">' +
+          '<button class="btn btn-ghost" onclick="FixedAssetsModule.render()">Batal</button>' +
+          '<button class="btn btn-primary" id="fa-save-btn">Simpan Aset</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('fa-save-btn').onclick = function() { _saveAsset(existing); };
+    area.scrollIntoView({behavior:'smooth'});
+  }
+
+  function _saveAsset(existing) {
+    var name    = (document.getElementById('fa-name')    ||{}).value||'';
+    var entity  = (document.getElementById('fa-entity')  ||{}).value||'';
+    var cat     = (document.getElementById('fa-category')||{}).value||'';
+    var date    = (document.getElementById('fa-date')    ||{}).value||'';
+    var cost    = parseFloat((document.getElementById('fa-cost')    ||{}).value)||0;
+    var residual= parseFloat((document.getElementById('fa-residual')||{}).value)||0;
+    var method  = (document.getElementById('fa-method')  ||{}).value||'Straight_Line';
+    var life    = parseInt((document.getElementById('fa-life')      ||{}).value)||60;
+    var ref     = (document.getElementById('fa-ref')     ||{}).value||'';
+    var errBox  = document.getElementById('fa-errors');
+
+    var errors = [];
+    if (!name)          errors.push('Nama aset wajib diisi');
+    if (!entity)        errors.push('Entity wajib dipilih');
+    if (!date)          errors.push('Tanggal perolehan wajib diisi');
+    if (!cost || cost<=0) errors.push('Nilai perolehan harus lebih dari 0');
+
+    if (errors.length>0) { if(errBox){errBox.style.display='block';errBox.innerHTML='<ul>'+errors.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul>';} return; }
+    if (errBox) errBox.style.display='none';
+
+    var assetId = existing ? existing.asset_id : 'FA-' + entity + '-' + Date.now();
+    DB.FixedAssets.save({
+      asset_id:            assetId,
+      entity_id:           entity,
+      asset_name:          name,
+      category:            cat,
+      acquisition_date:    date,
+      acquisition_cost:    cost,
+      residual_value:      residual,
+      depreciation_method: method,
+      useful_life_months:  life,
+      reference_no:        ref||null,
+      status:              'Active',
+      created_at:          Utils.today()
+    });
+
+    // Auto-create ledger entry for asset acquisition
+    if (!existing) {
+      var entAccts = DB.Accounts.byEntity(entity).filter(function(a){ return a.account_type==='Bank'; });
+      if (entAccts.length > 0) {
+        DB.Transactions.save({
+          txn_id:      Utils.newTxnId(date),
+          txn_date:    date,
+          entry_date:  Utils.today(),
+          entity_id:   entity,
+          bu_id:       DB.BU.byEntity(entity)[0] ? DB.BU.byEntity(entity)[0].bu_id : '',
+          activity_id: null,
+          account_id:  entAccts[0].account_id,
+          coa_code:    '151',
+          type_id:     'TXN-02',
+          cp_id:       null,
+          amount:      cost,
+          direction:   'Debit',
+          description: 'Perolehan aset: ' + name,
+          reference_id:assetId,
+          status:      'Posted',
+          void_reason: null,
+          created_by:  'User',
+          period:      Utils.toPeriod(date),
+          cf_class:    'Investing',
+          event_id:    null,
+          override_level: 1
+        });
+      }
+    }
+
+    Utils.toast('Aset berhasil disimpan');
+    render();
+  }
+
+  return { render, showNew, showEdit };
+
 })();
 
 // ============================================================
@@ -12916,6 +14360,8 @@ const App = (() => {
       { route: "treasury",          icon: "⟳",  label: "Treasury" },
       { route: "liability_payment", icon: "⊖",  label: "Bayar Utang" },
       { route: "debt",              icon: "◎",  label: "Fasilitas Utang" },
+      { route: "reconciliation",    icon: "⊜",  label: "Rekonsiliasi" },
+      { route: "fixed_assets",       icon: "⊞",  label: "Aset Tetap" },
       { route: "import",            icon: "↥",  label: "Import Data" },
       { route: "reports",           icon: "≡",  label: "Laporan" },
       { route: "masters",           icon: "◈",  label: "Master Data" },
@@ -12952,7 +14398,12 @@ const App = (() => {
     };
   }
 
-  return { init, navigate, getEntity, getPeriod, setEntity, setPeriod };
+  // Refresh current page after auto-sync pull
+  function refresh() {
+    try { navigate(_current || 'dashboard', false); } catch(e) {}
+  }
+
+  return { init, navigate, getEntity, getPeriod, setEntity, setPeriod, refresh };
 
 })();
 
@@ -12970,9 +14421,36 @@ window.netlifyIdentity = window.netlifyIdentity || {
 window.addEventListener("DOMContentLoaded", function() {
   try {
     App.init();
+
+    // Sprint 2: backfill cf_class for legacy transactions
+    setTimeout(function() {
+      try {
+        var txns = DB.Transactions.all();
+        var updated = 0;
+        txns.forEach(function(t) {
+          if (!t.cf_class && t.type_id) {
+            t.cf_class = DB.RuleEngine.legacyCfClass(t.type_id);
+            updated++;
+          }
+        });
+        if (updated > 0) {
+          localStorage.setItem('fos_transactions', JSON.stringify(txns));
+          console.log('[Sprint 2] cf_class backfill:', updated, 'transactions updated');
+        }
+      } catch(e) { console.warn('[Sprint 2] cf_class backfill failed:', e.message); }
+    }, 800);
+
+    // Supabase auto-sync — init immediately after app ready
+    if (typeof SupabaseSync !== 'undefined') {
+      // Small delay to let app render first, then sync
+      setTimeout(function() {
+        SupabaseSync.init().catch(function(e){
+          console.warn('[Supabase] Init failed:', e.message);
+        });
+      }, 800);
+    }
   } catch(e) {
     console.error("App init error:", e);
-    // Retry once after short delay
     setTimeout(function() {
       try { App.init(); } catch(e2) { console.error("App init retry failed:", e2); }
     }, 500);
@@ -12981,11 +14459,6 @@ window.addEventListener("DOMContentLoaded", function() {
 
   </script>
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});
-      });
-    }
+    if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});});}
   </script>
-</body>
-</html>
+</body></html>
