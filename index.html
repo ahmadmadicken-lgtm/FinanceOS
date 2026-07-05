@@ -1,4 +1,4 @@
-<!-- Finance OS v5.7 Auto-Sync build:20260705030735 -->
+<!-- Finance OS v5.9.1 Storage Indicator build:20260705032618 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -2183,6 +2183,109 @@ hr { border: none; border-top: 1px solid var(--border); }
 .rec-bal-val   { font-size: .95rem; font-weight: 600; font-family: "JetBrains Mono", monospace; }
 .rec-bal-ok  .rec-bal-val { color: var(--green); }
 .rec-bal-diff .rec-bal-val { color: var(--red); }
+
+/* ══════════════════════════════════════════════════════════
+   SPRINT 34 — DEBT PAYOFF PLANNER STYLES
+   ══════════════════════════════════════════════════════════ */
+
+.payoff-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.payoff-method-toggle { display: flex; gap: .5rem; }
+.payoff-method-btn {
+  padding: .65rem 1rem;
+  background: var(--bg-surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition), background var(--transition);
+  min-width: 160px;
+}
+.payoff-method-btn:hover  { border-color: var(--blue); }
+.payoff-method-btn.active { border-color: var(--blue); background: var(--blue-dim); }
+.payoff-method-name { font-size: .82rem; font-weight: 700; margin-bottom: .15rem; }
+.payoff-method-desc { font-size: .7rem; color: var(--text-muted); }
+.payoff-extra-input { flex: 1; min-width: 220px; }
+
+.payoff-summary-grid {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-bottom: .75rem;
+}
+.payoff-summary-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .65rem 1rem;
+  min-width: 140px;
+}
+.payoff-summary-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.payoff-summary-val   { font-size: .9rem; font-weight: 600; font-family: "JetBrains Mono", monospace; }
+
+.payoff-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+}
+.payoff-milestone-row { background: rgba(80,200,120,.06) !important; }
+
+/* ══════════════════════════════════════════════════════════
+   SPRINT 35 — BUDGET PLANNING STYLES
+   ══════════════════════════════════════════════════════════ */
+
+.budget-page  { max-width: 1000px; }
+.budget-header { margin-bottom: .75rem; }
+.budget-header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .5rem; }
+.budget-header-controls { display: flex; gap: .5rem; align-items: center; }
+.budget-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); }
+.budget-tab {
+  padding: .5rem 1rem; font-size: .8rem; font-weight: 500;
+  color: var(--text-muted); background: none; border: none;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  cursor: pointer; transition: color var(--transition), border-color var(--transition);
+}
+.budget-tab:hover { color: var(--text); }
+.budget-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+.budget-section-head {
+  font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-faint);
+  padding: .5rem 0 .25rem; border-bottom: 1px solid var(--border);
+  margin-bottom: .25rem;
+}
+.budget-table .form-input-sm { padding: .3rem .5rem; font-size: .8rem; height: auto; }
+.budget-summary-bar {
+  display: flex; gap: 1.5rem; flex-wrap: wrap;
+  padding: .6rem .75rem; background: var(--bg-raised);
+  border-radius: var(--radius); margin-bottom: .75rem;
+  font-size: .8rem;
+}
+.budget-net-summary {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: .75rem; margin-bottom: .75rem;
+}
+.budget-net-item { background: var(--bg-raised); border-radius: var(--radius); padding: .6rem .85rem; }
+.budget-net-label { font-size: .68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.budget-net-val   { font-size: .9rem; font-weight: 600; font-family: "JetBrains Mono", monospace; }
+
+.budget-bar-wrap  { background: var(--bg-raised); border-radius: 4px; height: 6px; overflow: hidden; }
+.budget-bar-fill  { height: 100%; border-radius: 4px; transition: width .3s; }
+.budget-bar-ok    { background: var(--green); }
+.budget-bar-warn  { background: var(--yellow); }
+.budget-bar-over  { background: var(--red); }
 </style>
 </head>
 <body>
@@ -13819,6 +13922,86 @@ const SettingsModule = (() => {
     render();
   }
 
+  function _renderStorageIndicator() {
+    var block = document.getElementById('storage-indicator-block');
+    if (!block) return;
+
+    // Count records
+    var txnCount   = DB.Transactions.all().length;
+    var rcvCount   = DB.Receivables.all().length;
+    var payCount   = DB.Payables.all().length;
+    var debtCount  = DB.DebtRegister.all().length;
+    var schedCount = DB.DebtSchedule.all().length;
+    var totalRec   = txnCount + rcvCount + payCount + debtCount + schedCount;
+
+    // Estimate localStorage usage
+    var lsUsed = 0;
+    try {
+      for (var k in localStorage) {
+        if (localStorage.hasOwnProperty(k) && k.startsWith('fos_')) {
+          lsUsed += (localStorage.getItem(k)||'').length * 2; // bytes (UTF-16)
+        }
+      }
+    } catch(e) {}
+    var lsUsedKB = Math.round(lsUsed / 1024);
+    var lsLimitKB = 5120; // 5MB conservative estimate
+    var lsPct = Math.min(100, Math.round(lsUsedKB / lsLimitKB * 100));
+
+    // Status
+    var status = lsPct < 50 ? 'ok' : lsPct < 75 ? 'warn' : 'danger';
+    var statusLabel = lsPct < 50 ? '&#10003; Aman' : lsPct < 75 ? '&#9888; Perhatikan' : '&#9940; Segera Migrasi';
+    var statusColor = lsPct < 50 ? 'var(--green)' : lsPct < 75 ? 'var(--yellow)' : 'var(--red)';
+
+    block.innerHTML =
+      '<div style="background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.85rem 1.1rem">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">' +
+          '<div style="font-size:.82rem;font-weight:600">&#128202; Storage Status</div>' +
+          '<div style="font-size:.75rem;color:' + statusColor + ';font-weight:600">' + statusLabel + '</div>' +
+        '</div>' +
+
+        // Progress bar
+        '<div style="background:var(--bg-surface);border-radius:4px;height:8px;overflow:hidden;margin-bottom:.6rem">' +
+          '<div style="height:100%;width:' + lsPct + '%;background:' + statusColor + ';border-radius:4px;transition:width .3s"></div>' +
+        '</div>' +
+
+        // Stats grid
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;font-size:.75rem">' +
+          '<div>' +
+            '<div style="color:var(--text-muted);text-transform:uppercase;font-size:.65rem;letter-spacing:.04em">Transaksi</div>' +
+            '<div style="font-weight:600;font-family:monospace">' + txnCount.toLocaleString() + '</div>' +
+            _txnBar(txnCount, 5000) +
+          '</div>' +
+          '<div>' +
+            '<div style="color:var(--text-muted);text-transform:uppercase;font-size:.65rem;letter-spacing:.04em">Piutang</div>' +
+            '<div style="font-weight:600;font-family:monospace">' + rcvCount.toLocaleString() + '</div>' +
+          '</div>' +
+          '<div>' +
+            '<div style="color:var(--text-muted);text-transform:uppercase;font-size:.65rem;letter-spacing:.04em">Jadwal Cicilan</div>' +
+            '<div style="font-weight:600;font-family:monospace">' + schedCount.toLocaleString() + '</div>' +
+          '</div>' +
+          '<div>' +
+            '<div style="color:var(--text-muted);text-transform:uppercase;font-size:.65rem;letter-spacing:.04em">Total Records</div>' +
+            '<div style="font-weight:600;font-family:monospace">' + totalRec.toLocaleString() + '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // Storage usage
+        '<div style="margin-top:.6rem;font-size:.75rem;color:var(--text-muted)">' +
+          'Storage digunakan: <strong>' + lsUsedKB.toLocaleString() + ' KB</strong> dari ~' + (lsLimitKB/1024).toFixed(0) + ' MB (' + lsPct + '%)' +
+          (txnCount > 3000 ? ' &nbsp;|&nbsp; <span style="color:var(--yellow)">&#9888; Transaksi mendekati batas. Pertimbangkan migrasi ke Supabase-first.</span>' : '') +
+          (txnCount > 4500 ? ' &nbsp;|&nbsp; <span style="color:var(--red)">&#9940; Segera hubungi untuk migrasi storage.</span>' : '') +
+        '</div>' +
+      '</div>';
+  }
+
+  function _txnBar(count, limit) {
+    var pct = Math.min(100, Math.round(count/limit*100));
+    var color = pct<60?'var(--green)':pct<85?'var(--yellow)':'var(--red)';
+    return '<div style="background:var(--bg-surface);border-radius:2px;height:3px;overflow:hidden;margin-top:.2rem">' +
+      '<div style="height:100%;width:'+pct+'%;background:'+color+'"></div>' +
+    '</div>';
+  }
+
   async function checkSync() {
     var el = document.getElementById('sync-health-result');
     if (el) el.innerHTML = '<span class="text-muted">&#9679; Mengecek...</span>';
@@ -14258,6 +14441,675 @@ const FixedAssetsModule = (() => {
 })();
 
 // ============================================================
+// FINANCE OS — DEBT PAYOFF PLANNER (Sprint #34)
+// Snowball + Avalanche methods
+// ============================================================
+
+const DebtPayoff = (() => {
+
+  var _method    = 'avalanche'; // 'avalanche' or 'snowball'
+  var _extraPay  = 0;
+
+  function render() {
+    var body   = document.getElementById('page-body');
+    var entity = App.getEntity();
+    var debts  = (entity && entity !== 'ALL'
+      ? DB.DebtRegister.byEntity(entity)
+      : DB.DebtRegister.all()
+    ).filter(function(d){
+      return ['Active','Overdue'].includes(d.status) &&
+        d.debt_category !== 'Revolving' &&
+        d.outstanding_principal > 0;
+    });
+
+    var totalOutstanding  = debts.reduce(function(s,d){ return s+(d.outstanding_principal||0); }, 0);
+    var totalMinMonthly   = debts.reduce(function(s,d){ return s+(d.monthly_installment||0); }, 0);
+
+    body.innerHTML =
+      '<div class="debt-page">' +
+
+      '<div class="debt-header">' +
+        '<h2>Debt Payoff Planner</h2>' +
+        '<p class="text-muted text-sm" style="margin-top:.25rem">' +
+          'Rencanakan strategi pelunasan utang dengan metode Snowball atau Avalanche.' +
+        '</p>' +
+      '</div>' +
+
+      // ── Method selector + extra payment ──────────────────
+      '<div class="payoff-controls">' +
+        '<div class="payoff-method-toggle">' +
+          '<button class="payoff-method-btn ' + (_method==='avalanche'?'active':'') + '" ' +
+            'id="btn-avalanche" onclick="DebtPayoff.setMethod(\'avalanche\')">'+
+            '<div class="payoff-method-name">&#9650; Avalanche</div>' +
+            '<div class="payoff-method-desc">Bunga tertinggi dulu — hemat total bunga</div>' +
+          '</button>' +
+          '<button class="payoff-method-btn ' + (_method==='snowball'?'active':'') + '" ' +
+            'id="btn-snowball" onclick="DebtPayoff.setMethod(\'snowball\')">'+
+            '<div class="payoff-method-name">&#10052; Snowball</div>' +
+            '<div class="payoff-method-desc">Saldo terkecil dulu — motivasi lebih tinggi</div>' +
+          '</button>' +
+        '</div>' +
+        '<div class="payoff-extra-input">' +
+          '<label class="text-sm font-medium">Extra Pembayaran per Bulan (Rp)</label>' +
+          '<input class="form-input" type="number" id="payoff-extra" value="' + _extraPay + '" ' +
+            'placeholder="0" oninput="DebtPayoff.setExtra(this.value)">' +
+          '<small class="form-hint">Di luar cicilan minimum. Semakin besar, semakin cepat lunas.</small>' +
+        '</div>' +
+      '</div>' +
+
+      (debts.length === 0
+        ? '<div class="card"><div class="debt-empty" style="padding:2rem">' +
+            '<div style="font-size:2rem;margin-bottom:.5rem">&#10003;</div>' +
+            '<p>Tidak ada utang cicilan aktif. Semua sudah lunas atau hanya revolving.</p>' +
+          '</div></div>'
+        : _renderPlan(debts, totalOutstanding, totalMinMonthly)
+      ) +
+
+      '</div>';
+  }
+
+  function _renderPlan(debts, totalOutstanding, totalMinMonthly) {
+    var plan     = _calculatePlan(debts, _method, _extraPay);
+    var planBase = _calculatePlan(debts, _method, 0);
+
+    var saving = planBase.totalInterest - plan.totalInterest;
+    var monthsSaved = planBase.totalMonths - plan.totalMonths;
+
+    return '<div class="payoff-summary-grid">' +
+      _summaryCard('Total Utang', Utils.formatIDR(totalOutstanding), '') +
+      _summaryCard('Cicilan Minimum', Utils.formatIDR(totalMinMonthly) + '/bln', '') +
+      _summaryCard('Lunas Dalam', plan.totalMonths + ' bulan', 'text-blue') +
+      _summaryCard('Total Bunga', Utils.formatIDR(plan.totalInterest), 'text-red') +
+      (saving > 0
+        ? _summaryCard('Hemat vs tanpa extra', Utils.formatIDR(saving) + ' · ' + monthsSaved + ' bln lebih cepat', 'text-green')
+        : '') +
+    '</div>' +
+
+    // ── Payoff Order ──────────────────────────────────────
+    '<div class="card" style="margin-top:.75rem">' +
+      '<div class="card-header">' +
+        '<div class="card-title">Urutan Pelunasan — Metode ' + (_method==='avalanche'?'Avalanche':'Snowball') + '</div>' +
+      '</div>' +
+      '<table class="table" style="font-size:.8rem">' +
+        '<thead><tr>' +
+          '<th>Urutan</th><th>Fasilitas</th><th>Alasan Prioritas</th>' +
+          '<th class="text-right">Outstanding</th>' +
+          '<th class="text-right">Rate</th>' +
+          '<th class="text-right">Cicilan Min</th>' +
+          '<th class="text-right">Perkiraan Lunas</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+        plan.order.map(function(item, idx) {
+          return '<tr>' +
+            '<td class="text-center"><span class="payoff-order-badge">' + (idx+1) + '</span></td>' +
+            '<td>' +
+              '<div class="text-sm font-medium">' + item.debt.description + '</div>' +
+              '<div class="text-xs text-muted">' + item.debt.debt_type + '</div>' +
+            '</td>' +
+            '<td class="text-xs text-muted">' + item.reason + '</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(item.debt.outstanding_principal) + '</td>' +
+            '<td class="text-right text-sm">' + (item.debt.interest_rate||0) + '%</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(item.debt.monthly_installment||0) + '</td>' +
+            '<td class="text-right text-sm text-blue">' + _monthsToDate(item.payoffMonth) + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody>' +
+      '</table>' +
+    '</div>' +
+
+    // ── Month-by-month schedule ───────────────────────────
+    '<div class="card" style="margin-top:.75rem">' +
+      '<div class="card-header">' +
+        '<div class="card-title">Jadwal Pembayaran Bulanan</div>' +
+        '<div class="text-muted text-sm">Termasuk extra pembayaran ' + Utils.formatIDR(_extraPay) + '/bln</div>' +
+      '</div>' +
+      '<div style="overflow-x:auto"><table class="table" style="font-size:.78rem">' +
+        '<thead><tr>' +
+          '<th>Bulan</th><th>Periode</th><th class="text-right">Total Bayar</th>' +
+          '<th class="text-right">Pokok</th><th class="text-right">Bunga</th>' +
+          '<th class="text-right">Sisa Utang</th><th>Event</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+        plan.schedule.slice(0, 36).map(function(row) {
+          return '<tr' + (row.debtsPaidOff.length > 0 ? ' class="payoff-milestone-row"' : '') + '>' +
+            '<td class="text-sm text-muted">' + row.month + '</td>' +
+            '<td class="text-sm">' + Utils.periodLabel(row.period) + '</td>' +
+            '<td class="text-right mono text-sm font-medium">' + Utils.formatIDR(row.totalPayment) + '</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(row.totalPrincipal) + '</td>' +
+            '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(row.totalInterest) + '</td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(row.remainingTotal) + '</td>' +
+            '<td class="text-xs">' +
+              (row.debtsPaidOff.length > 0
+                ? '<span class="badge badge-green">&#10003; ' + row.debtsPaidOff.join(', ') + ' LUNAS</span>'
+                : '') +
+            '</td>' +
+          '</tr>';
+        }).join('') +
+        (plan.schedule.length > 36
+          ? '<tr><td colspan="7" class="text-center text-muted text-sm">... dan ' + (plan.schedule.length-36) + ' bulan lainnya</td></tr>'
+          : '') +
+        '</tbody>' +
+        '<tfoot><tr>' +
+          '<td colspan="2" class="text-muted text-sm">Total ' + plan.totalMonths + ' bulan</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(plan.totalPayment) + '</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(totalOutstanding) + '</td>' +
+          '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(plan.totalInterest) + '</td>' +
+          '<td colspan="2"></td>' +
+        '</tr></tfoot>' +
+      '</table></div>' +
+    '</div>';
+  }
+
+  function _summaryCard(label, value, cls) {
+    return '<div class="payoff-summary-card">' +
+      '<div class="payoff-summary-label">' + label + '</div>' +
+      '<div class="payoff-summary-val ' + cls + '">' + value + '</div>' +
+    '</div>';
+  }
+
+  function _monthsToDate(monthsFromNow) {
+    var d = new Date();
+    d.setMonth(d.getMonth() + monthsFromNow);
+    return Utils.periodLabel(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+  }
+
+  // ── Core calculation engine ───────────────────────────────
+  function _calculatePlan(debts, method, extraPay) {
+    // Sort by method
+    var sorted = debts.slice().sort(function(a, b) {
+      if (method === 'avalanche') {
+        // Highest interest rate first; tie-break: highest outstanding
+        var rateDiff = (b.interest_rate||0) - (a.interest_rate||0);
+        return rateDiff !== 0 ? rateDiff : (b.outstanding_principal - a.outstanding_principal);
+      } else {
+        // Snowball: lowest outstanding first; tie-break: highest rate
+        var balDiff = (a.outstanding_principal||0) - (b.outstanding_principal||0);
+        return balDiff !== 0 ? balDiff : ((b.interest_rate||0) - (a.interest_rate||0));
+      }
+    });
+
+    // Build reason labels
+    var order = sorted.map(function(d, i) {
+      var reason = method === 'avalanche'
+        ? (i === 0 ? 'Bunga tertinggi (' + (d.interest_rate||0) + '%)' : 'Bunga ' + (d.interest_rate||0) + '%')
+        : (i === 0 ? 'Saldo terkecil (' + Utils.formatIDR(d.outstanding_principal) + ')' : 'Saldo ' + Utils.formatIDR(d.outstanding_principal));
+      return { debt: d, reason: reason, payoffMonth: 0 };
+    });
+
+    // Simulate month by month
+    var balances = {};
+    sorted.forEach(function(d) { balances[d.debt_id] = d.outstanding_principal || 0; });
+
+    var schedule       = [];
+    var month          = 0;
+    var totalInterest  = 0;
+    var totalPayment   = 0;
+    var maxMonths      = 360; // 30 year cap
+
+    var now = new Date();
+
+    while (month < maxMonths) {
+      month++;
+      var active = sorted.filter(function(d){ return balances[d.debt_id] > 0; });
+      if (active.length === 0) break;
+
+      var d = new Date(now.getFullYear(), now.getMonth() + month, 1);
+      var period = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+
+      var rowPrincipal  = 0;
+      var rowInterest   = 0;
+      var rowPayment    = 0;
+      var debtsPaidOff  = [];
+
+      // Pay minimum on all debts
+      active.forEach(function(debt) {
+        var bal      = balances[debt.debt_id];
+        var monthlyRate = (debt.interest_rate||0) / 100 / 12;
+        var interest = Math.round(bal * monthlyRate);
+        var minPay   = Math.min(debt.monthly_installment || (bal + interest), bal + interest);
+        var principal= Math.max(0, Math.min(bal, minPay - interest));
+
+        balances[debt.debt_id] -= principal;
+        rowPrincipal += principal;
+        rowInterest  += interest;
+        rowPayment   += minPay;
+      });
+
+      // Apply extra payment to focus debt (first in sorted order with balance)
+      var remaining = extraPay;
+      for (var i = 0; i < sorted.length && remaining > 0; i++) {
+        var bal = balances[sorted[i].debt_id];
+        if (bal <= 0) continue;
+        var extra = Math.min(remaining, bal);
+        balances[sorted[i].debt_id] -= extra;
+        rowPrincipal += extra;
+        rowPayment   += extra;
+        remaining    -= extra;
+      }
+
+      // Check who got paid off this month
+      order.forEach(function(item) {
+        if (balances[item.debt.debt_id] <= 0 && item.payoffMonth === 0) {
+          item.payoffMonth = month;
+          debtsPaidOff.push(item.debt.description.split(' ')[0]);
+        }
+      });
+
+      var remainingTotal = Object.values(balances).reduce(function(s,b){ return s+Math.max(0,b); }, 0);
+
+      totalInterest += rowInterest;
+      totalPayment  += rowPayment;
+
+      schedule.push({
+        month:        month,
+        period:       period,
+        totalPayment: rowPayment,
+        totalPrincipal:rowPrincipal,
+        totalInterest: rowInterest,
+        remainingTotal:remainingTotal,
+        debtsPaidOff:  debtsPaidOff
+      });
+    }
+
+    return {
+      order:         order,
+      schedule:      schedule,
+      totalMonths:   month,
+      totalInterest: totalInterest,
+      totalPayment:  totalPayment
+    };
+  }
+
+  function setMethod(method) {
+    _method = method;
+    render();
+  }
+
+  function setExtra(val) {
+    _extraPay = parseFloat(val) || 0;
+    render();
+  }
+
+  return { render, setMethod, setExtra };
+
+})();
+
+// ============================================================
+// FINANCE OS — BUDGET PLANNING MODULE (Sprint #35)
+// Budget vs Actual per COA per Period per Entity
+// ============================================================
+
+const BudgetModule = (() => {
+
+  var _view     = 'input';   // 'input' | 'compare'
+  var _period   = null;
+  var _entity   = null;
+
+  function render() {
+    var body = document.getElementById('page-body');
+    _entity  = App.getEntity();
+    _period  = _period || App.getPeriod();
+
+    var periods = _getAvailablePeriods();
+
+    body.innerHTML =
+      '<div class="budget-page">' +
+
+      // ── Header + tabs ─────────────────────────────────────
+      '<div class="budget-header">' +
+        '<div class="budget-header-top">' +
+          '<div>' +
+            '<h2>Budget Planning</h2>' +
+            '<p class="text-muted text-sm" style="margin-top:.2rem">Rencanakan anggaran per periode dan bandingkan dengan realisasi.</p>' +
+          '</div>' +
+          '<div class="budget-header-controls">' +
+            '<select class="form-input form-input-sm" id="budget-period-sel" onchange="BudgetModule.onPeriodChange()">' +
+              periods.map(function(p){
+                return '<option value="'+p+'"'+(p===_period?' selected':'')+'>'+Utils.periodLabel(p)+'</option>';
+              }).join('') +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div class="budget-tabs">' +
+          '<button class="budget-tab'+(_view==='input'?' active':'')+'" onclick="BudgetModule.switchView(\'input\')">&#9998; Input Anggaran</button>' +
+          '<button class="budget-tab'+(_view==='compare'?' active':'')+'" onclick="BudgetModule.switchView(\'compare\')">&#9651; Budget vs Aktual</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div id="budget-content">' +
+        (_view === 'input' ? _renderInput() : _renderCompare()) +
+      '</div>' +
+
+      '</div>';
+  }
+
+  // ── Input View ────────────────────────────────────────────
+  function _renderInput() {
+    var existing = _getBudgets(_entity, _period);
+    var obMap    = {};
+    existing.forEach(function(b){ obMap[b.coa_code] = b; });
+
+    // COA groups for P&L
+    var revCOAs = DB.COA.all().filter(function(c){ return c.coa_category==='Revenue' && c.status==='Active'; });
+    var expCOAs = DB.COA.all().filter(function(c){ return c.coa_category==='Expense' && c.status==='Active'; });
+
+    var totalRevBudget = existing.filter(function(b){
+      var c=DB.COA.byCode(b.coa_code); return c&&c.coa_category==='Revenue';
+    }).reduce(function(s,b){return s+b.budget_amount;},0);
+    var totalExpBudget = existing.filter(function(b){
+      var c=DB.COA.byCode(b.coa_code); return c&&c.coa_category==='Expense';
+    }).reduce(function(s,b){return s+b.budget_amount;},0);
+
+    return '<div class="card">' +
+      '<div class="card-header">' +
+        '<div class="card-title">Anggaran — ' + Utils.periodLabel(_period) + '</div>' +
+        '<div style="display:flex;gap:.5rem">' +
+          '<button class="btn btn-ghost btn-sm" onclick="BudgetModule.copyPrevious()">&#9003; Salin Bulan Lalu</button>' +
+          '<button class="btn btn-primary btn-sm" onclick="BudgetModule.saveAll()">&#10003; Simpan Semua</button>' +
+        '</div>' +
+      '</div>' +
+
+      // Budget summary
+      (existing.length > 0
+        ? '<div class="budget-summary-bar">' +
+            '<span>Total Budget Pendapatan: <strong class="text-green">' + Utils.formatIDR(totalRevBudget) + '</strong></span>' +
+            '<span>Total Budget Beban: <strong class="text-red">' + Utils.formatIDR(totalExpBudget) + '</strong></span>' +
+            '<span>Budget Laba: <strong class="' + (totalRevBudget-totalExpBudget>=0?'text-green':'text-red') + '">' + Utils.formatIDR(totalRevBudget-totalExpBudget) + '</strong></span>' +
+          '</div>'
+        : '') +
+
+      // Revenue section
+      '<div class="budget-section-head">PENDAPATAN</div>' +
+      '<table class="table budget-table">' +
+        '<thead><tr><th>COA</th><th>Nama</th><th class="text-right" style="min-width:180px">Budget (Rp)</th><th>Catatan</th></tr></thead>' +
+        '<tbody>' +
+        revCOAs.map(function(coa) {
+          var b = obMap[coa.coa_code];
+          return '<tr>' +
+            '<td class="mono text-sm text-muted">' + coa.coa_code + '</td>' +
+            '<td class="text-sm">' + coa.coa_name + '</td>' +
+            '<td><input class="form-input form-input-sm budget-input text-right" type="number" ' +
+              'data-coa="' + coa.coa_code + '" data-cat="Revenue" ' +
+              'value="' + (b?b.budget_amount:'') + '" placeholder="0"></td>' +
+            '<td><input class="form-input form-input-sm budget-note" type="text" ' +
+              'data-coa="' + coa.coa_code + '" ' +
+              'value="' + (b?b.notes:'') + '" placeholder="Opsional"></td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody>' +
+      '</table>' +
+
+      // Expense section
+      '<div class="budget-section-head" style="margin-top:1rem">BEBAN</div>' +
+      '<table class="table budget-table">' +
+        '<thead><tr><th>COA</th><th>Nama</th><th class="text-right" style="min-width:180px">Budget (Rp)</th><th>Catatan</th></tr></thead>' +
+        '<tbody>' +
+        expCOAs.map(function(coa) {
+          var b = obMap[coa.coa_code];
+          return '<tr>' +
+            '<td class="mono text-sm text-muted">' + coa.coa_code + '</td>' +
+            '<td class="text-sm">' + coa.coa_name + '</td>' +
+            '<td><input class="form-input form-input-sm budget-input text-right" type="number" ' +
+              'data-coa="' + coa.coa_code + '" data-cat="Expense" ' +
+              'value="' + (b?b.budget_amount:'') + '" placeholder="0"></td>' +
+            '<td><input class="form-input form-input-sm budget-note" type="text" ' +
+              'data-coa="' + coa.coa_code + '" ' +
+              'value="' + (b?b.notes:'') + '" placeholder="Opsional"></td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody>' +
+      '</table>' +
+
+      '<div class="form-actions-bar" style="margin-top:.75rem">' +
+        '<button class="btn btn-primary" onclick="BudgetModule.saveAll()">&#10003; Simpan Anggaran</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // ── Compare View ──────────────────────────────────────────
+  function _renderCompare() {
+    var budgets = _getBudgets(_entity, _period);
+    if (budgets.length === 0) {
+      return '<div class="card"><div class="debt-empty" style="padding:2rem">' +
+        '<p>Belum ada anggaran untuk periode ini.</p>' +
+        '<button class="btn btn-primary" onclick="BudgetModule.switchView(\'input\')">+ Input Anggaran</button>' +
+      '</div></div>';
+    }
+
+    var budgetMap = {};
+    budgets.forEach(function(b){ budgetMap[b.coa_code] = b.budget_amount; });
+
+    // Get actuals from transactions
+    var actualMap = {};
+    DB.Transactions.all().filter(function(t){
+      return t.status==='Posted' && t.period===_period &&
+        (_entity==='ALL' || t.entity_id===_entity);
+    }).forEach(function(t) {
+      if (!actualMap[t.coa_code]) actualMap[t.coa_code] = 0;
+      actualMap[t.coa_code] += t.direction==='Debit' ? t.amount : -t.amount;
+    });
+
+    // All COAs that have either budget or actual
+    var allCOAs = DB.COA.all().filter(function(c){
+      return (c.coa_category==='Revenue' || c.coa_category==='Expense') &&
+        (budgetMap[c.coa_code] || actualMap[c.coa_code]);
+    });
+
+    function _row(coa) {
+      var budget = budgetMap[coa.coa_code] || 0;
+      var actual = Math.abs(actualMap[coa.coa_code] || 0);
+      var diff   = coa.coa_category==='Revenue' ? (actual-budget) : (budget-actual);
+      var pct    = budget>0 ? Math.round(actual/budget*100) : null;
+      var status = budget===0 ? '' : pct>=100 ? 'over' : pct>=80 ? 'warn' : 'ok';
+
+      return '<tr>' +
+        '<td class="mono text-sm text-muted">' + coa.coa_code + '</td>' +
+        '<td class="text-sm">' + coa.coa_name + '</td>' +
+        '<td class="text-right mono text-sm">' + (budget>0?Utils.formatIDR(budget):'—') + '</td>' +
+        '<td class="text-right mono text-sm">' + (actual>0?Utils.formatIDR(actual):'—') + '</td>' +
+        '<td class="text-right mono text-sm ' + (diff>=0?'text-green':'text-red') + '">' +
+          (budget>0?(diff>=0?'+':'')+Utils.formatIDR(diff):'—') +
+        '</td>' +
+        '<td>' +
+          (pct!==null
+            ? '<div class="budget-bar-wrap">' +
+                '<div class="budget-bar-fill budget-bar-'+status+'" style="width:'+Math.min(pct,100)+'%"></div>' +
+              '</div>' +
+              '<div class="text-xs text-center">' + pct + '%</div>'
+            : '') +
+        '</td>' +
+      '</tr>';
+    }
+
+    var revCOAs = allCOAs.filter(function(c){ return c.coa_category==='Revenue'; });
+    var expCOAs = allCOAs.filter(function(c){ return c.coa_category==='Expense'; });
+
+    var totalRevBudget = revCOAs.reduce(function(s,c){ return s+(budgetMap[c.coa_code]||0); },0);
+    var totalRevActual = revCOAs.reduce(function(s,c){ return s+Math.abs(actualMap[c.coa_code]||0); },0);
+    var totalExpBudget = expCOAs.reduce(function(s,c){ return s+(budgetMap[c.coa_code]||0); },0);
+    var totalExpActual = expCOAs.reduce(function(s,c){ return s+Math.abs(actualMap[c.coa_code]||0); },0);
+    var netBudget = totalRevBudget - totalExpBudget;
+    var netActual = totalRevActual - totalExpActual;
+
+    return '<div class="card">' +
+      '<div class="card-header">' +
+        '<div class="card-title">Budget vs Aktual — ' + Utils.periodLabel(_period) + '</div>' +
+        '<button class="btn btn-ghost btn-sm" onclick="BudgetModule.exportBVA()">&#8615; Export CSV</button>' +
+      '</div>' +
+
+      // Net summary
+      '<div class="budget-net-summary">' +
+        '<div class="budget-net-item">' +
+          '<div class="budget-net-label">Budget Laba</div>' +
+          '<div class="budget-net-val">' + Utils.formatIDR(netBudget) + '</div>' +
+        '</div>' +
+        '<div class="budget-net-item">' +
+          '<div class="budget-net-label">Aktual Laba</div>' +
+          '<div class="budget-net-val ' + (netActual>=netBudget?'text-green':'text-red') + '">' + Utils.formatIDR(netActual) + '</div>' +
+        '</div>' +
+        '<div class="budget-net-item">' +
+          '<div class="budget-net-label">Selisih</div>' +
+          '<div class="budget-net-val ' + (netActual-netBudget>=0?'text-green':'text-red') + '">' +
+            (netActual-netBudget>=0?'+':'') + Utils.formatIDR(netActual-netBudget) +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<table class="table budget-table" style="margin-top:.75rem">' +
+        '<thead><tr>' +
+          '<th>COA</th><th>Nama</th>' +
+          '<th class="text-right">Budget</th>' +
+          '<th class="text-right">Aktual</th>' +
+          '<th class="text-right">Selisih</th>' +
+          '<th style="min-width:100px">Realisasi</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+        '<tr class="compare-subhead"><td colspan="6">PENDAPATAN</td></tr>' +
+        revCOAs.map(_row).join('') +
+        '<tr class="report-subtotal">' +
+          '<td colspan="2" class="text-sm">Total Pendapatan</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(totalRevBudget) + '</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(totalRevActual) + '</td>' +
+          '<td class="text-right mono text-sm ' + (totalRevActual>=totalRevBudget?'text-green':'text-red') + '">' +
+            (totalRevActual>=totalRevBudget?'+':'') + Utils.formatIDR(totalRevActual-totalRevBudget) + '</td>' +
+          '<td></td>' +
+        '</tr>' +
+        '<tr class="compare-subhead"><td colspan="6">BEBAN</td></tr>' +
+        expCOAs.map(_row).join('') +
+        '<tr class="report-subtotal">' +
+          '<td colspan="2" class="text-sm">Total Beban</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(totalExpBudget) + '</td>' +
+          '<td class="text-right mono text-sm">' + Utils.formatIDR(totalExpActual) + '</td>' +
+          '<td class="text-right mono text-sm ' + (totalExpActual<=totalExpBudget?'text-green':'text-red') + '">' +
+            (totalExpBudget-totalExpActual>=0?'+':'') + Utils.formatIDR(totalExpBudget-totalExpActual) + '</td>' +
+          '<td></td>' +
+        '</tr>' +
+        '</tbody>' +
+      '</table>' +
+    '</div>';
+  }
+
+  // ── Storage helpers ───────────────────────────────────────
+  function _budgetKey(entity, period) {
+    return 'fos_budgets_' + (entity||'ALL') + '_' + period;
+  }
+
+  function _getBudgets(entity, period) {
+    try {
+      var raw = localStorage.getItem(_budgetKey(entity, period));
+      return raw ? JSON.parse(raw) : [];
+    } catch(e) { return []; }
+  }
+
+  function _saveBudgets(entity, period, list) {
+    localStorage.setItem(_budgetKey(entity, period), JSON.stringify(list));
+  }
+
+  // ── Actions ───────────────────────────────────────────────
+  function saveAll() {
+    var inputs = document.querySelectorAll('.budget-input');
+    var notes  = {};
+    document.querySelectorAll('.budget-note').forEach(function(n){
+      notes[n.getAttribute('data-coa')] = n.value || '';
+    });
+
+    var list = [];
+    inputs.forEach(function(inp) {
+      var val = parseFloat(inp.value) || 0;
+      if (val > 0) {
+        list.push({
+          budget_id:    'BDG-' + _entity + '-' + _period + '-' + inp.getAttribute('data-coa'),
+          entity_id:    _entity,
+          period:       _period,
+          coa_code:     inp.getAttribute('data-coa'),
+          coa_category: inp.getAttribute('data-cat'),
+          budget_amount:val,
+          notes:        notes[inp.getAttribute('data-coa')] || '',
+          created_at:   Utils.today()
+        });
+      }
+    });
+
+    _saveBudgets(_entity, _period, list);
+    Utils.toast('Anggaran disimpan — ' + list.length + ' item');
+    render();
+  }
+
+  function copyPrevious() {
+    var parts  = _period.split('-');
+    var y = parseInt(parts[0]), m = parseInt(parts[1]);
+    if (m === 1) { y--; m=12; } else { m--; }
+    var prevPeriod = y + '-' + String(m).padStart(2,'0');
+    var prev = _getBudgets(_entity, prevPeriod);
+    if (prev.length === 0) {
+      Utils.toast('Tidak ada anggaran di bulan sebelumnya (' + Utils.periodLabel(prevPeriod) + ')', 'error');
+      return;
+    }
+    // Copy to current period
+    var copied = prev.map(function(b) {
+      return Object.assign({}, b, {
+        budget_id: 'BDG-' + _entity + '-' + _period + '-' + b.coa_code,
+        period:    _period,
+        created_at:Utils.today()
+      });
+    });
+    _saveBudgets(_entity, _period, copied);
+    Utils.toast('Anggaran disalin dari ' + Utils.periodLabel(prevPeriod) + ' — ' + copied.length + ' item');
+    render();
+  }
+
+  function exportBVA() {
+    var budgets   = _getBudgets(_entity, _period);
+    var budgetMap = {};
+    budgets.forEach(function(b){ budgetMap[b.coa_code] = b.budget_amount; });
+    var actualMap = {};
+    DB.Transactions.all().filter(function(t){
+      return t.status==='Posted' && t.period===_period &&
+        (_entity==='ALL'||t.entity_id===_entity);
+    }).forEach(function(t){
+      if (!actualMap[t.coa_code]) actualMap[t.coa_code] = 0;
+      actualMap[t.coa_code] += t.direction==='Debit' ? t.amount : -t.amount;
+    });
+
+    var allCOAs = DB.COA.all().filter(function(c){
+      return (c.coa_category==='Revenue'||c.coa_category==='Expense') &&
+        (budgetMap[c.coa_code]||actualMap[c.coa_code]);
+    });
+
+    Utils.exportCSV(
+      ['COA','Nama','Kategori','Budget','Aktual','Selisih','Pct'],
+      allCOAs.map(function(c){
+        var b = budgetMap[c.coa_code]||0;
+        var a = Math.abs(actualMap[c.coa_code]||0);
+        var d = c.coa_category==='Revenue' ? a-b : b-a;
+        var pct = b>0 ? Math.round(a/b*100) : null;
+        return [c.coa_code, c.coa_name, c.coa_category, b, a, d, pct!=null?pct+'%':'—'];
+      }),
+      'budget-vs-aktual-' + _period + '.csv'
+    );
+  }
+
+  function switchView(v) { _view=v; render(); }
+  function onPeriodChange() {
+    _period = (document.getElementById('budget-period-sel')||{}).value || _period;
+    render();
+  }
+
+  function _getAvailablePeriods() {
+    var now   = new Date();
+    var periods = [];
+    for (var i = -3; i <= 6; i++) {
+      var d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+      periods.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+    }
+    return periods;
+  }
+
+  return { render, switchView, onPeriodChange, saveAll, copyPrevious, exportBVA };
+
+})();
+
+// ============================================================
 // FINANCE OS — APP ROUTER & INIT (app.js)
 // ============================================================
 
@@ -14361,6 +15213,8 @@ const App = (() => {
       { route: "liability_payment", icon: "⊖",  label: "Bayar Utang" },
       { route: "debt",              icon: "◎",  label: "Fasilitas Utang" },
       { route: "reconciliation",    icon: "⊜",  label: "Rekonsiliasi" },
+      { route: "debt_payoff",        icon: "⤓",  label: "Payoff Planner" },
+      { route: "budget",              icon: "⊛",  label: "Budget" },
       { route: "fixed_assets",       icon: "⊞",  label: "Aset Tetap" },
       { route: "import",            icon: "↥",  label: "Import Data" },
       { route: "reports",           icon: "≡",  label: "Laporan" },
