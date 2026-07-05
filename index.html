@@ -1,4 +1,4 @@
-<!-- Finance OS v5.9.1 Storage Indicator build:20260705032618 -->
+<!-- Finance OS v5.9.2 Direction Review Tool build:20260705111908 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -13733,6 +13733,19 @@ const SettingsModule = (() => {
             <button class="btn btn-ghost" onclick="SettingsModule.importData()">Import JSON</button>
           </div>
           <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">&#9651; Review Arah Transaksi</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Review transaksi yang Direction-nya mungkin perlu dikoreksi.
+            Sistem menampilkan transaksi Cash Account (BCA, E-Wallet) yang
+            Direction-nya tidak sesuai ekspektasi akuntansi, atau yang diinput
+            sebelum Rule Engine aktif.
+          </p>
+          <div id="direction-review-area"></div>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
+            <button class="btn btn-secondary" onclick="SettingsModule.loadDirectionReview()">&#9651; Muat Transaksi untuk Review</button>
+          </div>
+
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
           <h4 style="margin-bottom:.5rem">&#128274; Period Lock</h4>
           <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
             Kunci periode agar tidak ada transaksi baru atau editan yang bisa masuk. Berguna setelah closing bulanan.
@@ -13793,84 +13806,37 @@ const SettingsModule = (() => {
   }
 
   // ── Migrate TXN IDs to use txn_date ──────────────────────
+  function _doMigrateTxnIds() {
+    var txns = DB.Transactions.all();
+    if (txns.length === 0) { Utils.toast('Tidak ada transaksi untuk dimigrasi'); return; }
+    var sorted = txns.slice().sort(function(a,b){ return (a.txn_date||'').localeCompare(b.txn_date||''); });
+    var dateCounts = {};
+    var idMap = {};
+    sorted.forEach(function(t) {
+      var dp = (t.txn_date||Utils.today()).replace(/-/g,'');
+      dateCounts[dp] = (dateCounts[dp]||0)+1;
+      var seq = String(dateCounts[dp]).padStart(3,'0');
+      idMap[t.txn_id] = 'TXN-'+dp+'-'+seq;
+    });
+    var newTxns = txns.map(function(t){ return Object.assign({},t,{txn_id:idMap[t.txn_id]||t.txn_id}); });
+    localStorage.setItem('fos_transactions', JSON.stringify(newTxns));
+    var cols = JSON.parse(localStorage.getItem('fos_collections')||'[]');
+    var newCols = cols.map(function(c){ return Object.assign({},c,{txn_id:idMap[c.txn_id]||c.txn_id}); });
+    localStorage.setItem('fos_collections', JSON.stringify(newCols));
+    var pmts = JSON.parse(localStorage.getItem('fos_payments')||'[]');
+    var newPmts = pmts.map(function(p){ return Object.assign({},p,{txn_id:idMap[p.txn_id]||p.txn_id}); });
+    localStorage.setItem('fos_payments', JSON.stringify(newPmts));
+    var trys = JSON.parse(localStorage.getItem('fos_treasury')||'[]');
+    var newTrys = trys.map(function(l){ return Object.assign({},l,{txn_id:idMap[l.txn_id]||l.txn_id}); });
+    localStorage.setItem('fos_treasury', JSON.stringify(newTrys));
+    var count = Object.keys(idMap).length;
+    Utils.toast(count+' TXN ID berhasil dimigrasi');
+    var summary = document.getElementById('migration-summary');
+    if (summary) { summary.style.display='block'; summary.textContent='Migrasi selesai: '+count+' transaksi.'; }
+  }
+
   function migrateTxnIds() {
-    Utils.confirm(
-      'Migrasi ID Transaksi: semua TXN ID yang ada akan di-regenerate berdasarkan tanggal transaksi (bukan tanggal input). ' +
-      'Referensi di Piutang, Utang, dan Treasury akan ikut diperbarui. Lanjutkan?',
-      function() {
-        const txns = DB.Transactions.all();
-        if (txns.length === 0) { Utils.toast('Tidak ada transaksi untuk dimigrasi'); return; }
-
-        // Build new IDs based on txn_date
-        // Sort by txn_date asc so sequence is deterministic
-        const sorted = txns.slice().sort(function(a, b) {
-          return (a.txn_date || '').localeCompare(b.txn_date || '');
-        });
-
-        // Count per date for sequencing
-        const dateCounts = {};
-        const idMap = {}; // old_id -> new_id
-
-        sorted.forEach(function(t) {
-          const datePart = (t.txn_date || Utils.today()).replace(/-/g, '');
-          dateCounts[datePart] = (dateCounts[datePart] || 0) + 1;
-          const seq = String(dateCounts[datePart]).padStart(3, '0');
-          const newId = 'TXN-' + datePart + '-' + seq;
-          idMap[t.txn_id] = newId;
-        });
-
-        // Check: if new IDs have collisions with existing different records, warn
-        const newIds = Object.values(idMap);
-        const uniqueNew = new Set(newIds);
-        if (uniqueNew.size !== newIds.length) {
-          Utils.toast('Peringatan: ada ID duplikat setelah migrasi. Periksa data.', 'error');
-        }
-
-        // Update transactions
-        const updatedTxns = txns.map(function(t) {
-          return Object.assign({}, t, { txn_id: idMap[t.txn_id] || t.txn_id });
-        });
-        localStorage.setItem('fos_transactions', JSON.stringify(updatedTxns));
-
-        // Update collections — txn_id reference
-        const cols = JSON.parse(localStorage.getItem('fos_collections') || '[]');
-        const updatedCols = cols.map(function(c) {
-          return Object.assign({}, c, { txn_id: idMap[c.txn_id] || c.txn_id });
-        });
-        localStorage.setItem('fos_collections', JSON.stringify(updatedCols));
-
-        // Update payments — txn_id reference
-        const pmts = JSON.parse(localStorage.getItem('fos_payments') || '[]');
-        const updatedPmts = pmts.map(function(p) {
-          return Object.assign({}, p, { txn_id: idMap[p.txn_id] || p.txn_id });
-        });
-        localStorage.setItem('fos_payments', JSON.stringify(updatedPmts));
-
-        // Update treasury legs — txn_id reference
-        const tryLegs = JSON.parse(localStorage.getItem('fos_treasury') || '[]');
-        const updatedTry = tryLegs.map(function(l) {
-          return Object.assign({}, l, { txn_id: idMap[l.txn_id] || l.txn_id });
-        });
-        localStorage.setItem('fos_treasury', JSON.stringify(updatedTry));
-
-        const count = Object.keys(idMap).length;
-        Utils.toast(count + ' TXN ID berhasil dimigrasi');
-
-        // Show summary
-        const summary = document.getElementById('migration-summary');
-        if (summary) {
-          summary.style.display = 'block';
-          summary.innerHTML =
-            '<strong>Migrasi selesai.</strong> ' + count + ' transaksi diperbarui.<br>' +
-            '<small class="text-muted">Contoh perubahan: ' +
-            Object.entries(idMap).slice(0, 3).map(function(e) {
-              return e[0] + ' → ' + e[1];
-            }).join(', ') +
-            (count > 3 ? ', ...' : '') +
-            '</small>';
-        }
-      }
-    );
+    Utils.confirm('Migrasi ID Transaksi: semua TXN ID akan di-regenerate berdasarkan tanggal transaksi. Lanjutkan?', _doMigrateTxnIds);
   }
 
   function exportData() {
@@ -13903,6 +13869,123 @@ const SettingsModule = (() => {
       reader.readAsText(file);
     };
     input.click();
+  }
+
+  function loadDirectionReview() {
+    var area = document.getElementById('direction-review-area');
+    if (!area) return;
+
+    // Find transactions that are flagged by integrity rule
+    // Cash accounts: COA 101, 102, 103
+    // Flag: Revenue COA + Debit, OR Expense COA + Credit
+    // Also flag: Cash COA where Direction might be user-reversed
+    var txns = DB.Transactions.all().filter(function(t) {
+      if (t.status !== 'Posted') return false;
+      if (t.direction_reviewed) return false; // already reviewed
+      var coa = DB.COA.byCode(t.coa_code);
+      if (!coa) return false;
+      if (coa.coa_category === 'Revenue'  && t.direction === 'Debit')  return true;
+      if (coa.coa_category === 'Expense'  && t.direction === 'Credit') return true;
+      return false;
+    }).sort(function(a,b){ return b.txn_date.localeCompare(a.txn_date); });
+
+    if (txns.length === 0) {
+      area.innerHTML = '<div class="info-box" style="margin-bottom:.75rem">&#10003; Tidak ada transaksi yang perlu direview saat ini.</div>';
+      return;
+    }
+
+    area.innerHTML =
+      '<div class="info-box" style="margin-bottom:.5rem;font-size:.76rem">' +
+        '<strong>' + txns.length + ' transaksi</strong> ditemukan. ' +
+        'Untuk setiap transaksi, pilih: ' +
+        '<strong>Balik Direction</strong> (jika salah input) atau ' +
+        '<strong>Tandai OK</strong> (jika memang benar secara konteks, misalnya refund atau reversal).' +
+      '</div>' +
+      '<div style="overflow-x:auto"><table class="table" style="font-size:.78rem">' +
+        '<thead><tr>' +
+          '<th>Tanggal</th><th>Deskripsi</th><th>Akun</th><th>COA</th>' +
+          '<th class="text-right">Jumlah</th><th>Direction Skrg</th><th>Seharusnya</th><th>Aksi</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+        txns.map(function(t) {
+          var coa    = DB.COA.byCode(t.coa_code);
+          var acct   = DB.Accounts.byId(t.account_id);
+          var categ  = coa ? coa.coa_category : '—';
+          var expected = categ === 'Revenue' ? 'Credit' : categ === 'Expense' ? 'Debit' : '—';
+          var cashDir  = categ === 'Revenue'
+            ? (t.direction === 'Debit' ? 'Cash Out (keluar)' : 'Cash In (masuk)')
+            : (t.direction === 'Credit' ? 'Cash In (masuk)' : 'Cash Out (keluar)');
+          return '<tr id="rev-row-' + t.txn_id + '">' +
+            '<td class="text-sm">' + Utils.formatDate(t.txn_date) + '</td>' +
+            '<td class="text-sm">' + (t.description||'—') + '</td>' +
+            '<td class="text-sm text-muted">' + (acct?acct.account_name:'—') + '</td>' +
+            '<td class="mono text-xs">' + t.coa_code + '<br><span class="text-muted">' + categ + '</span></td>' +
+            '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
+            '<td>' + Utils.directionBadge(t.direction) +
+              '<br><span class="text-xs text-muted">' + cashDir + '</span>' +
+            '</td>' +
+            '<td class="text-xs text-green">' + expected + '</td>' +
+            '<td>' +
+              '<div style="display:flex;gap:.35rem;flex-wrap:wrap">' +
+                '<button class="btn btn-secondary btn-sm" ' +
+                  'data-flip-id="' + t.txn_id + '"' +
+                  'title="Balik Direction">' +
+                  '&#8645; Balik' +
+                '</button>' +
+                '<button class="btn btn-ghost btn-sm" ' +
+                  'data-ok-id="' + t.txn_id + '"' +
+                  'title="Tandai sudah direview, tidak perlu diubah">' +
+                  '&#10003; OK' +
+                '</button>' +
+              '</div>' +
+            '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody>' +
+      '</table></div>';
+
+    // Bind via delegation
+    area.querySelectorAll('[data-flip-id]').forEach(function(btn){
+      btn.onclick = function(){ flipDirection(btn.getAttribute('data-flip-id')); };
+    });
+    area.querySelectorAll('[data-ok-id]').forEach(function(btn){
+      btn.onclick = function(){ markReviewed(btn.getAttribute('data-ok-id')); };
+    });
+  }
+
+  function flipDirection(txnId) {
+    var txns = DB.Transactions.all();
+    var idx  = txns.findIndex(function(t){ return t.txn_id === txnId; });
+    if (idx < 0) { Utils.toast('Transaksi tidak ditemukan', 'error'); return; }
+    var old = txns[idx].direction;
+    txns[idx].direction          = old === 'Debit' ? 'Credit' : 'Debit';
+    txns[idx].direction_reviewed = true;
+    txns[idx].direction_flipped  = true;
+    txns[idx].override_level     = 2;
+    txns[idx].override_reason    = 'Direction dikoreksi via Direction Review Tool';
+    localStorage.setItem('fos_transactions', JSON.stringify(txns));
+    // Remove row from table
+    var row = document.getElementById('rev-row-' + txnId);
+    if (row) {
+      row.style.opacity = '0.4';
+      row.style.textDecoration = 'line-through';
+      setTimeout(function(){ if(row) row.remove(); }, 600);
+    }
+    Utils.toast('Direction dibalik: ' + old + ' → ' + (old==='Debit'?'Credit':'Debit'));
+  }
+
+  function markReviewed(txnId) {
+    var txns = DB.Transactions.all();
+    var idx  = txns.findIndex(function(t){ return t.txn_id === txnId; });
+    if (idx < 0) return;
+    txns[idx].direction_reviewed = true;
+    localStorage.setItem('fos_transactions', JSON.stringify(txns));
+    var row = document.getElementById('rev-row-' + txnId);
+    if (row) {
+      row.style.opacity = '0.4';
+      setTimeout(function(){ if(row) row.remove(); }, 600);
+    }
+    Utils.toast('Ditandai OK — tidak akan muncul lagi di review list');
   }
 
   function lockPeriod() {
@@ -14023,7 +14106,7 @@ const SettingsModule = (() => {
         (result.debt_register.remote_has_data ? ' · Remote: ada data' : ' · Remote: kosong') + '</span>';
   }
 
-  return { render, save, exportData, importData, migrateTxnIds, checkSync, lockPeriod, unlockPeriod };
+  return { render, save, exportData, importData, migrateTxnIds, checkSync, lockPeriod, unlockPeriod, loadDirectionReview, flipDirection, markReviewed };
 })();
 
 // ============================================================
