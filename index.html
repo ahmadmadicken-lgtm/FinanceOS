@@ -1,4 +1,4 @@
-<!-- Finance OS v5.9.3 Settings Fix build:20260705120743 -->
+<!-- Finance OS v5.10 Sprint 36 Operational Language Layer build:20260705123011 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -2286,6 +2286,12 @@ hr { border: none; border-top: 1px solid var(--border); }
 .budget-bar-ok    { background: var(--green); }
 .budget-bar-warn  { background: var(--yellow); }
 .budget-bar-over  { background: var(--red); }
+
+/* ══════════════════════════════════════════════════════════
+   SPRINT 36 — OPERATIONAL LANGUAGE LAYER
+   ══════════════════════════════════════════════════════════ */
+.badge-green  { background: var(--green-dim);  color: var(--green);  border: 1px solid var(--green); }
+.badge-orange { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow); }
 </style>
 </head>
 <body>
@@ -4193,7 +4199,22 @@ const Utils = (() => {
   }
 
   function directionBadge(dir) {
-    return `<span class="badge ${dir === "Debit" ? "badge-blue" : "badge-purple"}">${dir}</span>`;
+    return '<span class="badge ' + (dir==='Debit'?'badge-blue':'badge-purple') + '">' + (dir||'—') + '</span>';
+  }
+
+  // Sprint 36 — Operational Language Layer
+  function cashFlowLabel(direction, coa_code) {
+    // For all cash/bank accounts: Debit = Cash In, Credit = Cash Out
+    if (direction === 'Debit')  return 'Cash In';
+    if (direction === 'Credit') return 'Cash Out';
+    return direction || '—';
+  }
+
+  function cashFlowBadge(direction, coa_code) {
+    var label = cashFlowLabel(direction, coa_code);
+    if (label === 'Cash In')  return '<span class="badge badge-green">&#8599; Cash In</span>';
+    if (label === 'Cash Out') return '<span class="badge badge-red">&#8600; Cash Out</span>';
+    return '<span class="badge badge-gray">' + (direction||'—') + '</span>';
   }
 
   function emptyState(message, actionLabel, actionFn) {
@@ -4256,7 +4277,7 @@ const Utils = (() => {
     newTxnId, newRcvId, newPayId, newColId, newPmtId, newTryRef,
     newEntityId, newBUId, newActivityId, newCpId, newAccountId,
     required, positiveNumber, validateTxn,
-    el, statusBadge, directionBadge, emptyState, toast, confirm, exportCSV, last12Periods
+    el, statusBadge, directionBadge, cashFlowLabel, cashFlowBadge, emptyState, toast, confirm, exportCSV, last12Periods
   };
 
 })();
@@ -5077,7 +5098,7 @@ const Dashboard = (() => {
           '<td>' + (t.description || '—') + '</td>' +
           '<td class="text-sm">' + (acct ? acct.account_name : t.account_id) + '</td>' +
           '<td class="text-right mono">' + Utils.formatIDRCompact(t.amount) + '</td>' +
-          '<td>' + Utils.directionBadge(t.direction) + '</td>' +
+          '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) + '</td>' +
         '</tr>';
       }).join('');
       inner = '<table class="table"><thead><tr>' +
@@ -5250,7 +5271,7 @@ const Transactions = (() => {
         '<td class="text-sm">' + (bu ? bu.bu_name : t.bu_id) + '</td>' +
         '<td class="text-sm">' + (typ ? typ.type_name : t.type_id) + '</td>' +
         '<td class="text-right mono">' + Utils.formatIDR(t.amount) + '</td>' +
-        '<td>' + Utils.directionBadge(t.direction) + '</td>' +
+        '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) + '</td>' +
         '<td>' + Utils.statusBadge(t.status) + '</td>' +
         '<td class="text-center">' + _rowActions(t) + '</td>' +
       '</tr>';
@@ -5261,7 +5282,7 @@ const Transactions = (() => {
         '<thead><tr>' +
           '<th>ID</th><th>Tanggal</th><th>Deskripsi</th><th>Akun</th><th>Counter Akun</th>' +
           '<th>COA</th><th>BU</th><th>Tipe</th><th class="text-right">Jumlah</th>' +
-          '<th>Dir</th><th>Status</th><th>Aksi</th>' +
+          '<th>Arah</th><th>Status</th><th>Aksi</th>' +
         '</tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
@@ -5476,10 +5497,11 @@ const Transactions = (() => {
                   ' <span class="dir-override-toggle" id="dir-override-toggle" onclick="Transactions.toggleDirectionOverride()" title="Override auto-direction">&#9998; override</span>' +
                 '</label>' +
                 '<select class="form-input" id="f-direction" disabled>' +
-                  '<option value="">— Auto dari Tipe & COA —</option>' +
-                  '<option value="Debit">Debit</option>' +
-                  '<option value="Credit">Credit</option>' +
+                  '<option value="">— Auto dari Business Event —</option>' +
+                  '<option value="Debit">&#8599; Cash In (Debit)</option>' +
+                  '<option value="Credit">&#8600; Cash Out (Credit)</option>' +
                 '</select>' +
+                '<small class="form-hint">Cash In = uang masuk ke rekening ini · Cash Out = uang keluar</small>' +
                 '<div id="dir-warning" class="dir-warning" style="display:none"></div>' +
                 '<small class="form-hint" id="dir-hint">Akan diisi otomatis saat Tipe dan COA dipilih</small>' +
               '</div>' +
@@ -6119,7 +6141,7 @@ const Transactions = (() => {
                 '<input class="form-input" type="number" id="f-amount" value="' + t.amount + '" min="1">' +
               '</div>' +
               '<div class="form-group">' +
-                '<label>Direction <span class="required">*</span></label>' +
+                '<label>Arah <span class="required">*</span> <span class="text-muted text-xs">(auto dari Business Event)</span></label>' +
                 '<select class="form-input" id="f-direction">' +
                   '<option value="">— Pilih —</option>' +
                   '<option value="Debit" ' + (t.direction === 'Debit' ? 'selected' : '') + '>Debit</option>' +
@@ -11389,7 +11411,7 @@ const Reports = (() => {
                     '<td class="text-xs text-muted">' + (ent?ent.entity_name:t.entity_id) + '</td>' +
                     '<td class="text-xs text-muted">' + (bu?bu.bu_name:t.bu_id||'—') + '</td>' +
                     '<td class="text-xs">' + (evt?'<span class="badge badge-blue">'+evt.event_name+'</span>':t.type_id) + '</td>' +
-                    '<td>' + Utils.directionBadge(t.direction) + '</td>' +
+                    '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) + '</td>' +
                     '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
                   '</tr>';
                 }).join('') +
@@ -13975,7 +13997,7 @@ const SettingsModule = (() => {
             '<td class="text-sm text-muted">' + (acct?acct.account_name:'—') + '</td>' +
             '<td class="mono text-xs">' + t.coa_code + '<br><span class="text-muted">' + categ + '</span></td>' +
             '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
-            '<td>' + Utils.directionBadge(t.direction) +
+            '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) +
               '<br><span class="text-xs text-muted">' + cashDir + '</span>' +
             '</td>' +
             '<td class="text-xs text-green">' + expected + '</td>' +
