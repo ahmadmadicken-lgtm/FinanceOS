@@ -1,4 +1,4 @@
-<!-- Finance OS v5.9.2 Direction Review Tool build:20260705111908 -->
+<!-- Finance OS v5.9.3 Settings Fix build:20260705120743 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -13791,6 +13791,60 @@ const SettingsModule = (() => {
             <button class="btn btn-secondary" onclick="SettingsModule.migrateTxnIds()">&#128260; Migrasi TXN ID → Tanggal Transaksi</button>
           </div>
           <div id="migration-summary" class="info-box" style="display:none;margin-top:1rem"></div>
+
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">&#9651; Review Arah Transaksi</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Review transaksi yang Direction-nya mungkin perlu dikoreksi.
+            Sistem menampilkan transaksi dengan COA Revenue yang di-Debit,
+            atau COA Expense yang di-Credit. Kamu bisa balik atau tandai OK.
+          </p>
+          <div id="direction-review-area"></div>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
+            <button class="btn btn-secondary" onclick="SettingsModule.loadDirectionReview()">&#9651; Muat Transaksi untuk Review</button>
+          </div>
+
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">&#128274; Period Lock</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Kunci periode agar tidak ada transaksi baru atau editan yang bisa masuk.
+            Hanya Forced Override (Level 3) yang bisa melewati kunci ini.
+          </p>
+          <div id="period-lock-list" style="margin-bottom:.75rem"></div>
+          <div class="form-row" style="margin-bottom:.75rem">
+            <div class="form-group">
+              <label>Kunci Periode</label>
+              <input class="form-input" type="month" id="lock-period-input">
+            </div>
+            <div class="form-group">
+              <label>Alasan</label>
+              <input class="form-input" id="lock-period-reason" placeholder="Contoh: Closing Juni 2026">
+            </div>
+          </div>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap">
+            <button class="btn btn-secondary" onclick="SettingsModule.lockPeriod()">&#128274; Kunci Periode</button>
+            <button class="btn btn-ghost" onclick="SettingsModule.unlockPeriod()">&#128275; Buka Kunci</button>
+          </div>
+
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <div id="storage-indicator-block" style="margin-bottom:1.5rem"></div>
+
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">&#9729; Supabase Sync</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Data disimpan di Supabase untuk sync antar device. Mencakup semua transaksi, piutang, utang, treasury, dan fasilitas utang.
+          </p>
+          <div class="info-box" style="margin-bottom:.75rem;font-size:.76rem">
+            <strong>Cakupan Sync:</strong> Transaksi &middot; Piutang &middot; Utang &middot; Treasury &middot;
+            Debt Register &middot; Jadwal Angsuran &middot; History Pembayaran &middot; Master Data
+          </div>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap">
+            <button class="btn btn-secondary" onclick="SupabaseSync.manualSync()">&#8679; Push ke Supabase</button>
+            <button class="btn btn-ghost" onclick="SupabaseSync.manualPull()">&#8681; Pull dari Supabase</button>
+            <button class="btn btn-ghost btn-sm" onclick="SettingsModule.checkSync()">&#9654; Cek Status Sync</button>
+          </div>
+          <div id="sync-health-result" style="margin-top:.75rem;font-size:.76rem"></div>
+
         </div>
       </div>`;
   }
