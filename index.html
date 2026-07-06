@@ -1,4 +1,4 @@
-<!-- Finance OS v5.10 Sprint 36 Operational Language Layer build:20260705123011 -->
+<!-- Finance OS v5.10.1 Context-Sensitive Operational Language build:20260706140717 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -2292,6 +2292,18 @@ hr { border: none; border-top: 1px solid var(--border); }
    ══════════════════════════════════════════════════════════ */
 .badge-green  { background: var(--green-dim);  color: var(--green);  border: 1px solid var(--green); }
 .badge-orange { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow); }
+
+/* ── Context-sensitive Operational Language badges ─────────── */
+.badge-purple { background: rgba(150,100,255,.12); color: #a78bfa; border: 1px solid #a78bfa; }
+.badge-subtext {
+  font-size: .65rem;
+  color: var(--text-muted);
+  margin-top: .15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
 </style>
 </head>
 <body>
@@ -4202,19 +4214,77 @@ const Utils = (() => {
     return '<span class="badge ' + (dir==='Debit'?'badge-blue':'badge-purple') + '">' + (dir||'—') + '</span>';
   }
 
-  // Sprint 36 — Operational Language Layer
-  function cashFlowLabel(direction, coa_code) {
-    // For all cash/bank accounts: Debit = Cash In, Credit = Cash Out
+  // Sprint 36 — Operational Language Layer (context-sensitive)
+  // Semantic mapping is based on Business Event domain, not Direction alone
+  function cashFlowLabel(direction, coa_code, event_id, from_account, to_account) {
+    // Resolve event domain if event_id provided
+    var domain = null;
+    if (event_id && typeof DB !== 'undefined' && DB.EventCatalog) {
+      var evt = DB.EventCatalog.byId(event_id);
+      if (evt) domain = evt.domain;
+    }
+
+    // Treasury domain — internal transfer, no external cash movement
+    if (domain === 'Treasury') return 'Transfer';
+
+    // Also detect Treasury by TXN type if no event
+    // (for legacy transactions without event_id)
+
+    // Revenue domain
+    if (domain === 'Revenue') return 'Cash In';
+
+    // Expense domain
+    if (domain === 'Expense') return 'Cash Out';
+
+    // Debt domain — context-sensitive
+    if (domain === 'Debt') {
+      if (direction === 'Debit')  return 'Cash In';   // loan drawdown
+      if (direction === 'Credit') return 'Cash Out';  // loan payment
+    }
+
+    // Receivable domain
+    if (domain === 'Receivable') {
+      if (direction === 'Debit')  return 'Catat Piutang';
+      if (direction === 'Credit') return 'Terima Pelunasan';
+    }
+
+    // Equity domain
+    if (domain === 'Equity') {
+      if (direction === 'Debit')  return 'Penarikan';
+      if (direction === 'Credit') return 'Setoran';
+    }
+
+    // Fallback — no event_id or unknown domain
     if (direction === 'Debit')  return 'Cash In';
     if (direction === 'Credit') return 'Cash Out';
     return direction || '—';
   }
 
-  function cashFlowBadge(direction, coa_code) {
-    var label = cashFlowLabel(direction, coa_code);
-    if (label === 'Cash In')  return '<span class="badge badge-green">&#8599; Cash In</span>';
-    if (label === 'Cash Out') return '<span class="badge badge-red">&#8600; Cash Out</span>';
-    return '<span class="badge badge-gray">' + (direction||'—') + '</span>';
+  function cashFlowBadge(direction, coa_code, event_id, from_account, to_account) {
+    var label = cashFlowLabel(direction, coa_code, event_id, from_account, to_account);
+
+    // Treasury — special badge with from→to context
+    if (label === 'Transfer') {
+      var ctx = '';
+      if (from_account || to_account) {
+        var fromAcct = from_account ? (typeof DB !== 'undefined' ? DB.Accounts.byId(from_account) : null) : null;
+        var toAcct   = to_account   ? (typeof DB !== 'undefined' ? DB.Accounts.byId(to_account)   : null) : null;
+        var fromName = fromAcct ? fromAcct.account_name : (from_account||'');
+        var toName   = toAcct   ? toAcct.account_name   : (to_account||'');
+        if (fromName && toName) {
+          ctx = '<div class="badge-subtext">' + fromName + ' &#8594; ' + toName + '</div>';
+        }
+      }
+      return '<span class="badge badge-purple">&#8646; Transfer</span>' + ctx;
+    }
+
+    if (label === 'Cash In')           return '<span class="badge badge-green">&#8599; Cash In</span>';
+    if (label === 'Cash Out')          return '<span class="badge badge-red">&#8600; Cash Out</span>';
+    if (label === 'Catat Piutang')     return '<span class="badge badge-blue">&#8635; Piutang</span>';
+    if (label === 'Terima Pelunasan')  return '<span class="badge badge-green">&#10003; Pelunasan</span>';
+    if (label === 'Setoran')           return '<span class="badge badge-green">&#8679; Setoran</span>';
+    if (label === 'Penarikan')         return '<span class="badge badge-orange">&#8681; Penarikan</span>';
+    return '<span class="badge badge-gray">' + label + '</span>';
   }
 
   function emptyState(message, actionLabel, actionFn) {
@@ -5098,7 +5168,7 @@ const Dashboard = (() => {
           '<td>' + (t.description || '—') + '</td>' +
           '<td class="text-sm">' + (acct ? acct.account_name : t.account_id) + '</td>' +
           '<td class="text-right mono">' + Utils.formatIDRCompact(t.amount) + '</td>' +
-          '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) + '</td>' +
+          '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) + '</td>' +
         '</tr>';
       }).join('');
       inner = '<table class="table"><thead><tr>' +
@@ -5271,7 +5341,7 @@ const Transactions = (() => {
         '<td class="text-sm">' + (bu ? bu.bu_name : t.bu_id) + '</td>' +
         '<td class="text-sm">' + (typ ? typ.type_name : t.type_id) + '</td>' +
         '<td class="text-right mono">' + Utils.formatIDR(t.amount) + '</td>' +
-        '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) + '</td>' +
+        '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) + '</td>' +
         '<td>' + Utils.statusBadge(t.status) + '</td>' +
         '<td class="text-center">' + _rowActions(t) + '</td>' +
       '</tr>';
@@ -11411,7 +11481,7 @@ const Reports = (() => {
                     '<td class="text-xs text-muted">' + (ent?ent.entity_name:t.entity_id) + '</td>' +
                     '<td class="text-xs text-muted">' + (bu?bu.bu_name:t.bu_id||'—') + '</td>' +
                     '<td class="text-xs">' + (evt?'<span class="badge badge-blue">'+evt.event_name+'</span>':t.type_id) + '</td>' +
-                    '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) + '</td>' +
+                    '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) + '</td>' +
                     '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
                   '</tr>';
                 }).join('') +
@@ -13997,7 +14067,7 @@ const SettingsModule = (() => {
             '<td class="text-sm text-muted">' + (acct?acct.account_name:'—') + '</td>' +
             '<td class="mono text-xs">' + t.coa_code + '<br><span class="text-muted">' + categ + '</span></td>' +
             '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
-            '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code) +
+            '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) +
               '<br><span class="text-xs text-muted">' + cashDir + '</span>' +
             '</td>' +
             '<td class="text-xs text-green">' + expected + '</td>' +
