@@ -1,4 +1,4 @@
-<!-- Finance OS v5.10.2 Treasury Transfer fix build:20260708034549 -->
+<!-- Finance OS v5.10.3 Direction integrity + COA fallback fix build:20260708041445 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4258,7 +4258,24 @@ const Utils = (() => {
     if (cf_class === 'Treasury') return 'Transfer';
     // Fallback: check TXN type for legacy transactions
     if (type_id === 'TXN-06') return 'Transfer';
-    // Final fallback
+    // Fallback: check COA category for legacy transactions without event_id
+    // This ensures correct semantic even when event_id is not set
+    if (coa_code && typeof DB !== 'undefined' && DB.COA) {
+      var coa = DB.COA.byCode(coa_code);
+      if (coa) {
+        if (coa.coa_category === 'Revenue') {
+          // Revenue: Credit = Cash In (normal), Debit = Refund/Reversal
+          if (direction === 'Credit') return 'Cash In';
+          if (direction === 'Debit')  return 'Cash Out'; // refund going out
+        }
+        if (coa.coa_category === 'Expense') {
+          // Expense: Debit = Cash Out (normal), Credit = Refund/Reversal
+          if (direction === 'Debit')  return 'Cash Out';
+          if (direction === 'Credit') return 'Cash In'; // expense refund coming in
+        }
+      }
+    }
+    // Final fallback — direction only (unknown COA/event context)
     if (direction === 'Debit')  return 'Cash In';
     if (direction === 'Credit') return 'Cash Out';
     return direction || '—';
@@ -4829,8 +4846,14 @@ const Dashboard = (() => {
 
     // Rule 1: Revenue should be Credit, Expense should be Debit
     var directionMismatches = txns.filter(function(t) {
+      // Skip transactions already reviewed via Direction Review Tool
+      if (t.direction_reviewed) return false;
       var coa = DB.COA.byCode(t.coa_code);
       if (!coa) return false;
+      // Skip Treasury transactions — direction is intentional
+      if (t.type_id === 'TXN-06' || t.cf_class === 'Treasury') return false;
+      // Skip transactions with override (user confirmed direction intentionally)
+      if (t.override_level >= 2) return false;
       if (coa.coa_category === 'Revenue' && t.direction === 'Debit')  return true;
       if (coa.coa_category === 'Expense' && t.direction === 'Credit') return true;
       return false;
