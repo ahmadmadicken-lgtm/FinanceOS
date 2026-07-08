@@ -1,4 +1,4 @@
-<!-- Finance OS v5.10.3 Direction integrity + COA fallback fix build:20260708041445 -->
+<!-- Finance OS v5.10.4 Debt payment Cash Out fix build:20260708043015 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4236,10 +4236,35 @@ const Utils = (() => {
     // Expense domain
     if (domain === 'Expense') return 'Cash Out';
 
-    // Debt domain — context-sensitive
+    // Debt domain — context-sensitive by specific event
     if (domain === 'Debt') {
-      if (direction === 'Debit')  return 'Cash In';   // loan drawdown
-      if (direction === 'Credit') return 'Cash Out';  // loan payment
+      // EVT-D03: Cairkan Pinjaman → Cash In (loan received into bank)
+      if (event_id === 'EVT-D03') return 'Cash In';
+      // EVT-D01: Belanja CC/BNPL → Cash Out (spending)
+      if (event_id === 'EVT-D01') return 'Cash Out';
+      // EVT-D02: Bayar CC → Cash Out (payment leaving bank)
+      if (event_id === 'EVT-D02') return 'Cash Out';
+      // EVT-D04: Bayar Cicilan → Cash Out (installment leaving bank)
+      if (event_id === 'EVT-D04') return 'Cash Out';
+      // Fallback within Debt domain: use COA account type
+      // Cash/Bank account COA (1xx): Debit = money in, Credit = money out
+      // Liability COA (2xx): Debit = paying off debt (cash out), Credit = taking on debt (cash in)
+      if (coa_code) {
+        var coaNum = parseInt(coa_code);
+        if (coaNum >= 200 && coaNum < 300) {
+          // Liability COA
+          if (direction === 'Debit')  return 'Cash Out'; // reducing liability = paying
+          if (direction === 'Credit') return 'Cash In';  // increasing liability = receiving
+        }
+        if (coaNum >= 100 && coaNum < 200) {
+          // Asset/Cash COA
+          if (direction === 'Debit')  return 'Cash In';  // cash received
+          if (direction === 'Credit') return 'Cash Out'; // cash paid out
+        }
+      }
+      // Last resort within Debt domain
+      if (direction === 'Debit')  return 'Cash Out'; // most debt debits are payments
+      if (direction === 'Credit') return 'Cash In';
     }
 
     // Receivable domain
@@ -4259,19 +4284,27 @@ const Utils = (() => {
     // Fallback: check TXN type for legacy transactions
     if (type_id === 'TXN-06') return 'Transfer';
     // Fallback: check COA category for legacy transactions without event_id
-    // This ensures correct semantic even when event_id is not set
     if (coa_code && typeof DB !== 'undefined' && DB.COA) {
       var coa = DB.COA.byCode(coa_code);
       if (coa) {
         if (coa.coa_category === 'Revenue') {
-          // Revenue: Credit = Cash In (normal), Debit = Refund/Reversal
           if (direction === 'Credit') return 'Cash In';
-          if (direction === 'Debit')  return 'Cash Out'; // refund going out
+          if (direction === 'Debit')  return 'Cash Out'; // revenue refund
         }
         if (coa.coa_category === 'Expense') {
-          // Expense: Debit = Cash Out (normal), Credit = Refund/Reversal
           if (direction === 'Debit')  return 'Cash Out';
-          if (direction === 'Credit') return 'Cash In'; // expense refund coming in
+          if (direction === 'Credit') return 'Cash In';  // expense refund
+        }
+        if (coa.coa_category === 'Liability') {
+          // Paying off liability = cash goes out
+          if (direction === 'Debit')  return 'Cash Out';
+          // Taking on liability = cash comes in (loan received)
+          if (direction === 'Credit') return 'Cash In';
+        }
+        if (coa.coa_category === 'Asset') {
+          // Asset increasing = cash in, Asset decreasing = cash out
+          if (direction === 'Debit')  return 'Cash In';
+          if (direction === 'Credit') return 'Cash Out';
         }
       }
     }
