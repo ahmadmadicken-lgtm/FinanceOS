@@ -1,4 +1,4 @@
-<!-- Finance OS v5.10.1 Context-Sensitive Operational Language build:20260706140717 -->
+<!-- Finance OS v5.10.2 Treasury Transfer fix build:20260708034549 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4216,7 +4216,7 @@ const Utils = (() => {
 
   // Sprint 36 — Operational Language Layer (context-sensitive)
   // Semantic mapping is based on Business Event domain, not Direction alone
-  function cashFlowLabel(direction, coa_code, event_id, from_account, to_account) {
+  function cashFlowLabel(direction, coa_code, event_id, from_account, to_account, cf_class, type_id) {
     // Resolve event domain if event_id provided
     var domain = null;
     if (event_id && typeof DB !== 'undefined' && DB.EventCatalog) {
@@ -4254,14 +4254,18 @@ const Utils = (() => {
       if (direction === 'Credit') return 'Setoran';
     }
 
-    // Fallback — no event_id or unknown domain
+    // Fallback: check cf_class (from Rule Engine or legacyCfClass backfill)
+    if (cf_class === 'Treasury') return 'Transfer';
+    // Fallback: check TXN type for legacy transactions
+    if (type_id === 'TXN-06') return 'Transfer';
+    // Final fallback
     if (direction === 'Debit')  return 'Cash In';
     if (direction === 'Credit') return 'Cash Out';
     return direction || '—';
   }
 
-  function cashFlowBadge(direction, coa_code, event_id, from_account, to_account) {
-    var label = cashFlowLabel(direction, coa_code, event_id, from_account, to_account);
+  function cashFlowBadge(direction, coa_code, event_id, from_account, to_account, cf_class, type_id) {
+    var label = cashFlowLabel(direction, coa_code, event_id, from_account, to_account, cf_class, type_id);
 
     // Treasury — special badge with from→to context
     if (label === 'Transfer') {
@@ -5168,7 +5172,7 @@ const Dashboard = (() => {
           '<td>' + (t.description || '—') + '</td>' +
           '<td class="text-sm">' + (acct ? acct.account_name : t.account_id) + '</td>' +
           '<td class="text-right mono">' + Utils.formatIDRCompact(t.amount) + '</td>' +
-          '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) + '</td>' +
+          '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id, t.cf_class, t.type_id) + '</td>' +
         '</tr>';
       }).join('');
       inner = '<table class="table"><thead><tr>' +
@@ -5341,7 +5345,7 @@ const Transactions = (() => {
         '<td class="text-sm">' + (bu ? bu.bu_name : t.bu_id) + '</td>' +
         '<td class="text-sm">' + (typ ? typ.type_name : t.type_id) + '</td>' +
         '<td class="text-right mono">' + Utils.formatIDR(t.amount) + '</td>' +
-        '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) + '</td>' +
+        '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id, t.cf_class, t.type_id) + '</td>' +
         '<td>' + Utils.statusBadge(t.status) + '</td>' +
         '<td class="text-center">' + _rowActions(t) + '</td>' +
       '</tr>';
@@ -8271,7 +8275,8 @@ const Treasury = (() => {
       txn_id: srcTxnId, txn_date: date, entry_date: Utils.today(),
       entity_id: srcAcct.entity_id, bu_id: _defaultBU(srcAcct.entity_id),
       activity_id: null, account_id: srcId, coa_code: srcAcct.coa_code,
-      type_id: 'TXN-06', cp_id: null, amount: amount, direction: 'Credit',
+      type_id: 'TXN-06', event_id: 'EVT-T01', cf_class: 'Treasury',
+        cp_id: null, amount: amount, direction: 'Credit',
       description: 'Treasury — ' + tryRef + ' (keluar)', reference_id: tryRef,
       status: 'Posted', void_reason: null, created_by: 'User', period: Utils.toPeriod(date)
     });
@@ -8287,7 +8292,8 @@ const Treasury = (() => {
       txn_id: dstTxnId, txn_date: date, entry_date: Utils.today(),
       entity_id: dstAcct.entity_id, bu_id: _defaultBU(dstAcct.entity_id),
       activity_id: null, account_id: dstId, coa_code: dstAcct.coa_code,
-      type_id: 'TXN-06', cp_id: null, amount: amount, direction: 'Debit',
+      type_id: 'TXN-06', event_id: 'EVT-T01', cf_class: 'Treasury',
+        cp_id: null, amount: amount, direction: 'Debit',
       description: 'Treasury — ' + tryRef + ' (masuk)', reference_id: tryRef,
       status: 'Posted', void_reason: null, created_by: 'User', period: Utils.toPeriod(date)
     });
@@ -11481,7 +11487,7 @@ const Reports = (() => {
                     '<td class="text-xs text-muted">' + (ent?ent.entity_name:t.entity_id) + '</td>' +
                     '<td class="text-xs text-muted">' + (bu?bu.bu_name:t.bu_id||'—') + '</td>' +
                     '<td class="text-xs">' + (evt?'<span class="badge badge-blue">'+evt.event_name+'</span>':t.type_id) + '</td>' +
-                    '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) + '</td>' +
+                    '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id, t.cf_class, t.type_id) + '</td>' +
                     '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
                   '</tr>';
                 }).join('') +
@@ -14067,7 +14073,7 @@ const SettingsModule = (() => {
             '<td class="text-sm text-muted">' + (acct?acct.account_name:'—') + '</td>' +
             '<td class="mono text-xs">' + t.coa_code + '<br><span class="text-muted">' + categ + '</span></td>' +
             '<td class="text-right mono text-sm">' + Utils.formatIDR(t.amount) + '</td>' +
-            '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id) +
+            '<td>' + Utils.cashFlowBadge(t.direction, t.coa_code, t.event_id, t.account_id, t.counter_account_id, t.cf_class, t.type_id) +
               '<br><span class="text-xs text-muted">' + cashDir + '</span>' +
             '</td>' +
             '<td class="text-xs text-green">' + expected + '</td>' +
