@@ -1,4 +1,4 @@
-<!-- Finance OS v5.10.4 Debt payment Cash Out fix build:20260708043015 -->
+<!-- Finance OS v5.10.5 Receivable Cash In fix build:20260708044255 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4269,8 +4269,15 @@ const Utils = (() => {
 
     // Receivable domain
     if (domain === 'Receivable') {
-      if (direction === 'Debit')  return 'Catat Piutang';
-      if (direction === 'Credit') return 'Terima Pelunasan';
+      if (event_id === 'EVT-P01' || event_id === 'EVT-P02') {
+        // EVT-P01: Catat Piutang/Invoice (Debit = piutang naik)
+        // EVT-P02: Catat Uang Muka/Pinjaman Pribadi
+        if (direction === 'Debit')  return 'Cash Out'; // giving advance / recording receivable
+        if (direction === 'Credit') return 'Cash In';  // collecting receivable
+      }
+      // Fallback: Credit = collection (Cash In), Debit = new receivable (Cash Out)
+      if (direction === 'Debit')  return 'Cash Out';
+      if (direction === 'Credit') return 'Cash In';
     }
 
     // Equity domain
@@ -4302,9 +4309,24 @@ const Utils = (() => {
           if (direction === 'Credit') return 'Cash In';
         }
         if (coa.coa_category === 'Asset') {
-          // Asset increasing = cash in, Asset decreasing = cash out
-          if (direction === 'Debit')  return 'Cash In';
-          if (direction === 'Credit') return 'Cash Out';
+          var sub = coa.coa_subcategory || '';
+          if (sub === 'Kas & Bank') {
+            // Cash/Bank: Debit = money received, Credit = money sent out
+            if (direction === 'Debit')  return 'Cash In';
+            if (direction === 'Credit') return 'Cash Out';
+          } else if (sub === 'Piutang' || sub === 'Uang Muka Pemilik') {
+            // Receivable/CEO Advance:
+            // Debit = creating receivable (cash going out or advance given)
+            // Credit = collecting receivable (cash coming IN to us)
+            if (direction === 'Debit')  return 'Cash Out';
+            if (direction === 'Credit') return 'Cash In';
+          } else {
+            // Other assets (inventory, fixed assets, prepaid):
+            // Debit = acquiring = cash going out
+            // Credit = disposing/consuming = cash coming in (unusual)
+            if (direction === 'Debit')  return 'Cash Out';
+            if (direction === 'Credit') return 'Cash In';
+          }
         }
       }
     }
