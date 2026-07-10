@@ -1,4 +1,4 @@
-<!-- Finance OS v5.10.5 Receivable Cash In fix build:20260708044255 -->
+<!-- Finance OS v5.10.6 Direction review sync fix build:20260710073423 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -14184,38 +14184,39 @@ const SettingsModule = (() => {
   }
 
   function flipDirection(txnId) {
-    var txns = DB.Transactions.all();
-    var idx  = txns.findIndex(function(t){ return t.txn_id === txnId; });
-    if (idx < 0) { Utils.toast('Transaksi tidak ditemukan', 'error'); return; }
-    var old = txns[idx].direction;
-    txns[idx].direction          = old === 'Debit' ? 'Credit' : 'Debit';
-    txns[idx].direction_reviewed = true;
-    txns[idx].direction_flipped  = true;
-    txns[idx].override_level     = 2;
-    txns[idx].override_reason    = 'Direction dikoreksi via Direction Review Tool';
-    localStorage.setItem('fos_transactions', JSON.stringify(txns));
-    // Remove row from table
+    var txn = DB.Transactions.all().find(function(t){ return t.txn_id === txnId; });
+    if (!txn) { Utils.toast('Transaksi tidak ditemukan', 'error'); return; }
+    var old = txn.direction;
+    // Use DB.Transactions.save() so it goes through _set() → queueBulkSync → Supabase
+    DB.Transactions.save(Object.assign({}, txn, {
+      direction:          old === 'Debit' ? 'Credit' : 'Debit',
+      direction_reviewed: true,
+      direction_flipped:  true,
+      override_level:     2,
+      override_reason:    'Direction dikoreksi via Direction Review Tool'
+    }));
     var row = document.getElementById('rev-row-' + txnId);
     if (row) {
       row.style.opacity = '0.4';
       row.style.textDecoration = 'line-through';
       setTimeout(function(){ if(row) row.remove(); }, 600);
     }
-    Utils.toast('Direction dibalik: ' + old + ' → ' + (old==='Debit'?'Credit':'Debit'));
+    Utils.toast('Direction dibalik dan disinkronkan ke Supabase');
   }
 
   function markReviewed(txnId) {
-    var txns = DB.Transactions.all();
-    var idx  = txns.findIndex(function(t){ return t.txn_id === txnId; });
-    if (idx < 0) return;
-    txns[idx].direction_reviewed = true;
-    localStorage.setItem('fos_transactions', JSON.stringify(txns));
+    var txn = DB.Transactions.all().find(function(t){ return t.txn_id === txnId; });
+    if (!txn) return;
+    // Use DB.Transactions.save() so it syncs to Supabase
+    DB.Transactions.save(Object.assign({}, txn, {
+      direction_reviewed: true
+    }));
     var row = document.getElementById('rev-row-' + txnId);
     if (row) {
       row.style.opacity = '0.4';
       setTimeout(function(){ if(row) row.remove(); }, 600);
     }
-    Utils.toast('Ditandai OK — tidak akan muncul lagi di review list');
+    Utils.toast('Ditandai OK dan disinkronkan ke Supabase');
   }
 
   function lockPeriod() {
