@@ -1,4 +1,4 @@
-<!-- Finance OS v5.10.6 Direction review sync fix build:20260710073423 -->
+<!-- Finance OS v5.11 Debt Obligation Model build:20260710130753 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -2819,7 +2819,9 @@ const DB = (() => {
     op_classes:        "fos_op_classes",
     // ── Sprint 7: ERP Readiness ───────────────────────────────
     reconciliations:   "fos_reconciliations",
-    fixed_assets:      "fos_fixed_assets"
+    fixed_assets:      "fos_fixed_assets",
+    // ── Debt Obligation Model ────────────────────────────────
+    debt_obligations:  "fos_debt_obligations"
   };
 
   function _get(key) {
@@ -2830,7 +2832,7 @@ const DB = (() => {
     localStorage.setItem(key, JSON.stringify(data));
     // Sync to Supabase if available - only for transaction/financial data, not master
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.queueSync) {
-      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_payables','fos_payments','fos_treasury','fos_debt_register','fos_debt_schedule','fos_debt_payments','fos_event_catalog','fos_event_rules','fos_coa_balances'];
+      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_payables','fos_payments','fos_treasury','fos_debt_register','fos_debt_schedule','fos_debt_payments','fos_debt_obligations','fos_event_catalog','fos_event_rules','fos_coa_balances'];
       if (syncKeys.includes(key)) {
         // Queue the whole array - handled by pushAll inside sync queue processor
         SupabaseSync.queueBulkSync(key);
@@ -4015,7 +4017,100 @@ const DB = (() => {
     }
   };
 
-  return { init, Settings, Entities, BU, Activities, COA, Accounts, Counterparties, TxnTypes, Transactions, Receivables, Collections, Payables, Payments, Treasury, Reports, DataIO, DebtRegister, DebtSchedule, DebtPayments, EventCatalog, EventRules, RuleEngine, COABalances, OpClasses, Reconciliations, FixedAssets };
+
+  // ══════════════════════════════════════════════════════════
+  // DEBT OBLIGATIONS — Credit Obligation layer
+  // Sits between Facility (fos_debt_register) and Schedule
+  // ══════════════════════════════════════════════════════════
+  const DebtObligations = {
+    all:        function() { return _get(KEYS.debt_obligations); },
+    byId:       function(id) { return _get(KEYS.debt_obligations).find(function(o){ return o.obligation_id === id; }); },
+    byFacility: function(debt_id) {
+      return _get(KEYS.debt_obligations)
+        .filter(function(o){ return o.debt_id === debt_id; })
+        .sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+    },
+    active: function(debt_id) {
+      return DebtObligations.byFacility(debt_id)
+        .filter(function(o){ return o.status !== 'Settled'; });
+    },
+
+    save: function(ob) {
+      var list = _get(KEYS.debt_obligations);
+      var idx  = list.findIndex(function(o){ return o.obligation_id === ob.obligation_id; });
+      if (idx >= 0) list[idx] = ob; else list.push(ob);
+      _set(KEYS.debt_obligations, list);
+    },
+
+    // Total outstanding across all obligations for a facility
+    totalOutstanding: function(debt_id) {
+      return DebtObligations.byFacility(debt_id)
+        .filter(function(o){ return o.status !== 'Settled'; })
+        .reduce(function(s,o){ return s + (o.outstanding_principal||0); }, 0);
+    },
+
+    // Available credit = facility limit - total obligations outstanding
+    availableCredit: function(debt_id) {
+      var facility = DebtRegister.byId(debt_id);
+      if (!facility || !facility.credit_limit) return null;
+      return Math.max(0, facility.credit_limit - DebtObligations.totalOutstanding(debt_id));
+    },
+
+    // Monthly obligation = sum of all active monthly installments
+    monthlyTotal: function(debt_id) {
+      return DebtObligations.active(debt_id)
+        .reduce(function(s,o){ return s + (o.monthly_installment||0); }, 0);
+    },
+
+    // ── Auto-migration: create one obligation per existing facility ──
+    // Called once on init if obligations table is empty but register has data
+    autoMigrate: function() {
+      var existing = _get(KEYS.debt_obligations);
+      var facilities = _get(KEYS.debt_register);
+      if (facilities.length === 0) return 0;
+
+      // Find facilities that don't have an obligation yet
+      var migratedIds = existing.map(function(o){ return o.debt_id; });
+      var toMigrate   = facilities.filter(function(f){ return migratedIds.indexOf(f.debt_id) < 0; });
+      if (toMigrate.length === 0) return 0;
+
+      var count = 0;
+      toMigrate.forEach(function(f) {
+        // Determine obligation type from facility category
+        var obType = f.debt_category === 'Revolving' ? 'Installment' : 'Installment';
+        if (f.debt_category === 'Revolving' && !f.monthly_installment) obType = 'Revolving';
+
+        var ob = {
+          obligation_id:        'OBL-' + f.debt_id + '-1',
+          debt_id:              f.debt_id,
+          entity_id:            f.entity_id,
+          bu_id:                f.bu_id,
+          obligation_type:      obType,  // 'Installment' | 'Revolving'
+          description:          f.description,
+          original_amount:      f.original_amount || f.outstanding_principal || 0,
+          outstanding_principal:f.outstanding_principal || 0,
+          interest_rate:        f.interest_rate || 0,
+          interest_type:        f.interest_type || 'None',
+          billing_method:       f.billing_method || 'Bundled_Unknown',
+          monthly_installment:  f.monthly_installment || 0,
+          tenor_months:         f.tenor_months || null,
+          remaining_installments:f.remaining_installments || 0,
+          start_date:           f.start_date || f.created_at || null,
+          next_due_date:        f.next_due_date || null,
+          status:               f.status || 'Active',
+          is_opening_balance:   f.is_opening_balance || false,
+          migrated_from:        f.debt_id,  // audit trail
+          created_at:           f.created_at || new Date().toISOString().split('T')[0],
+          notes:                'Auto-migrated from facility record'
+        };
+        DebtObligations.save(ob);
+        count++;
+      });
+      return count;
+    }
+  };
+
+  return { init, Settings, Entities, BU, Activities, COA, Accounts, Counterparties, TxnTypes, Transactions, Receivables, Collections, Payables, Payments, Treasury, Reports, DataIO, DebtRegister, DebtSchedule, DebtPayments, EventCatalog, EventRules, RuleEngine, COABalances, OpClasses, Reconciliations, FixedAssets, DebtObligations };
 
 })();
 
@@ -10145,6 +10240,7 @@ const DebtModule = (() => {
       // ── Tabs ─────────────────────────────────────────────
       '<div class="debt-tabs">' +
         '<button class="debt-tab active" id="tab-schedule" data-tab="schedule">Jadwal Angsuran (' + schedules.length + ')</button>' +
+        '<button class="debt-tab" id="tab-obligations" data-tab="obligations">&#9776; Kelola Kewajiban</button>' +
         '<button class="debt-tab" id="tab-payments" data-tab="payments">History Pembayaran (' + payments.length + ')</button>' +
         '<button class="debt-tab" id="tab-info" data-tab="info">Info Lengkap</button>' +
       '</div>' +
@@ -10277,6 +10373,10 @@ const DebtModule = (() => {
   }
 
   function _switchTab(tab) {
+    if (tab === 'obligations') {
+      showObligations(_selectedDebtId);
+      return;
+    }
     ['schedule','payments','info'].forEach(function(t) {
       var btn = document.getElementById('tab-' + t);
       var content = document.getElementById('tab-content-' + t);
@@ -10436,18 +10536,11 @@ const DebtModule = (() => {
                       ? ' (Full Revolving — sesuai total bayar)'
                       : ' (Principal Only — sesuai pokok)') +
                   '</span>' +
-                  '<span class="mono text-green" id="pmt-credit-delta">+ ' + Utils.formatIDR(
-                    debt.credit_limit_type === 'Full_Revolving' ? defTotal : defPrincipal
-                  ) + '</span>' +
+                  '<span class="mono text-green" id="pmt-credit-delta">+ ' + Utils.formatIDR(debt.credit_limit_type === 'Full_Revolving' ? defTotal : defPrincipal) + '</span>' +
                 '</div>' +
                 '<div class="debt-credit-row debt-credit-after">' +
                   '<span><strong>Available Credit Setelah</strong></span>' +
-                  '<span class="mono text-green" id="pmt-credit-after"><strong>' + Utils.formatIDR(
-                    Math.min(debt.credit_limit,
-                      (debt.available_credit || 0) +
-                      (debt.credit_limit_type === 'Full_Revolving' ? defTotal : defPrincipal)
-                    )
-                  ) + '</strong></span>' +
+                  '<span class="mono text-green" id="pmt-credit-after"><strong>' + Utils.formatIDR(Math.min(debt.credit_limit, (debt.available_credit||0) + (debt.credit_limit_type==='Full_Revolving'?defTotal:defPrincipal))) + '</strong></span>' +
                 '</div>' +
               '</div>' +
             '</div>'
@@ -10727,6 +10820,260 @@ const DebtModule = (() => {
     showDetail(_selectedDebtId);
   }
 
+
+  // ══════════════════════════════════════════════════════════
+  // OBLIGATION MANAGEMENT
+  // ══════════════════════════════════════════════════════════
+
+  function showObligations(debtId) {
+    _selectedDebtId = debtId;
+    _view = 'obligations';
+    var body     = document.getElementById('page-body');
+    var facility = DB.DebtRegister.byId(debtId);
+    if (!facility) return;
+    var obs      = DB.DebtObligations.byFacility(debtId);
+    var entity   = DB.Entities.all().find(function(e){ return e.entity_id === facility.entity_id; });
+
+    body.innerHTML =
+      '<div class="debt-page">' +
+        '<div class="debt-toolbar">' +
+          '<div class="debt-toolbar-left">' +
+            '<button class="btn btn-ghost" data-back-debt="' + debtId + '">&#8592; Kembali</button>' +
+            '<span class="text-muted" style="margin:0 .5rem">|</span>' +
+            '<strong>' + facility.description + '</strong>' +
+            '<span class="text-muted text-sm" style="margin-left:.5rem">' + (entity?entity.entity_name:'') + '</span>' +
+          '</div>' +
+          '<button class="btn btn-primary" data-new-ob="' + debtId + '">+ Tambah Kewajiban</button>' +
+        '</div>' +
+
+        // Facility summary
+        '<div class="debt-kpi-grid" style="margin-bottom:.75rem">' +
+          '<div class="debt-kpi-card kpi-blue">' +
+            '<div class="debt-kpi-label">Credit Limit</div>' +
+            '<div class="debt-kpi-value">' + Utils.formatIDR(facility.credit_limit||0) + '</div>' +
+          '</div>' +
+          '<div class="debt-kpi-card kpi-red">' +
+            '<div class="debt-kpi-label">Total Outstanding</div>' +
+            '<div class="debt-kpi-value">' + Utils.formatIDR(DB.DebtObligations.totalOutstanding(debtId)) + '</div>' +
+          '</div>' +
+          '<div class="debt-kpi-card kpi-green">' +
+            '<div class="debt-kpi-label">Available Credit</div>' +
+            '<div class="debt-kpi-value">' + Utils.formatIDR(DB.DebtObligations.availableCredit(debtId)||0) + '</div>' +
+          '</div>' +
+          '<div class="debt-kpi-card kpi-yellow">' +
+            '<div class="debt-kpi-label">Cicilan/Bulan</div>' +
+            '<div class="debt-kpi-value">' + Utils.formatIDR(DB.DebtObligations.monthlyTotal(debtId)) + '</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div id="obligation-form-area"></div>' +
+
+        (obs.length === 0
+          ? '<div class="card"><div class="debt-empty" style="padding:2rem">' +
+              '<p>Belum ada kewajiban. Tambahkan cicilan atau revolving balance.</p>' +
+              '<button class="btn btn-primary" data-new-ob="' + debtId + '">+ Tambah Kewajiban</button>' +
+            '</div></div>'
+          : '<div class="card">' +
+              '<div class="card-header"><div class="card-title">Daftar Kewajiban</div></div>' +
+              '<table class="table" style="font-size:.8rem">' +
+                '<thead><tr>' +
+                  '<th>Deskripsi</th><th>Tipe</th><th class="text-right">Pokok</th>' +
+                  '<th class="text-right">Outstanding</th><th class="text-right">Cicilan/bln</th>' +
+                  '<th class="text-right">Rate</th><th>Sisa</th><th>Status</th><th>Aksi</th>' +
+                '</tr></thead>' +
+                '<tbody>' +
+                obs.map(function(ob) {
+                  return '<tr>' +
+                    '<td class="text-sm font-medium">' + ob.description + (ob.migrated_from?'<br><span class="text-xs text-muted">(migrated)</span>':'') + '</td>' +
+                    '<td><span class="badge ' + (ob.obligation_type==='Revolving'?'badge-purple':'badge-blue') + '">' + ob.obligation_type + '</span></td>' +
+                    '<td class="text-right mono text-sm">' + Utils.formatIDR(ob.original_amount||0) + '</td>' +
+                    '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(ob.outstanding_principal||0) + '</td>' +
+                    '<td class="text-right mono text-sm">' + (ob.monthly_installment?Utils.formatIDR(ob.monthly_installment):'Fleksibel') + '</td>' +
+                    '<td class="text-right text-sm">' + (ob.interest_rate||0) + '%</td>' +
+                    '<td class="text-sm text-center">' + (ob.obligation_type==='Revolving'?'—':(ob.remaining_installments||0)+' bln') + '</td>' +
+                    '<td><span class="badge ' + (ob.status==='Active'?'badge-green':ob.status==='Settled'?'badge-gray':'badge-yellow') + '">' + ob.status + '</span></td>' +
+                    '<td><div class="row-actions">' +
+                      '<button class="btn-action" data-edit-ob="' + ob.obligation_id + '" title="Edit">&#9998;</button>' +
+                    '</div></td>' +
+                  '</tr>';
+                }).join('') +
+                '</tbody>' +
+              '</table>' +
+            '</div>'
+        ) +
+      '</div>';
+
+    // Bind buttons via data attributes
+    var backBtn = body.querySelector('[data-back-debt]');
+    if (backBtn) backBtn.onclick = function(){ DebtModule.showDetail(backBtn.getAttribute('data-back-debt')); };
+    body.querySelectorAll('[data-new-ob]').forEach(function(btn){
+      btn.onclick = function(){ DebtModule.showNewObligation(btn.getAttribute('data-new-ob')); };
+    });
+    body.querySelectorAll('[data-edit-ob]').forEach(function(btn){
+      btn.onclick = function(){ DebtModule.editObligation(btn.getAttribute('data-edit-ob')); };
+    });
+  }
+
+  function showNewObligation(debtId) {
+    _renderObligationForm(debtId, null);
+  }
+
+  function editObligation(obligationId) {
+    var ob = DB.DebtObligations.byId(obligationId);
+    if (!ob) return;
+    _renderObligationForm(ob.debt_id, ob);
+  }
+
+  function _renderObligationForm(debtId, existing) {
+    var area     = document.getElementById('obligation-form-area');
+    var facility = DB.DebtRegister.byId(debtId);
+    if (!area || !facility) return;
+
+    area.innerHTML =
+      '<div class="ob-form-panel" style="margin-bottom:1rem">' +
+        '<div class="ob-form-title">' + (existing?'Edit':'Tambah') + ' Kewajiban — ' + facility.description + '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Deskripsi <span class="required">*</span></label>' +
+            '<input class="form-input" id="ob-desc" value="' + (existing?existing.description:'') + '" placeholder="Cicilan 1, Revolving Balance, dll">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Tipe Kewajiban</label>' +
+            '<select class="form-input" id="ob-type" onchange="DebtModule._onObTypeChange()">' +
+              '<option value="Installment"' + (existing&&existing.obligation_type==='Installment'?' selected':'') + '>Cicilan (Installment)</option>' +
+              '<option value="Revolving"' + (existing&&existing.obligation_type==='Revolving'?' selected':'') + '>Revolving Balance</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Status</label>' +
+            '<select class="form-input" id="ob-status">' +
+              '<option value="Active"' + (!existing||existing.status==='Active'?' selected':'') + '>Active</option>' +
+              '<option value="Settled"' + (existing&&existing.status==='Settled'?' selected':'') + '>Settled</option>' +
+              '<option value="Overdue"' + (existing&&existing.status==='Overdue'?' selected':'') + '>Overdue</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Pokok Awal (Rp) <span class="required">*</span></label>' +
+            '<input class="form-input" type="number" id="ob-amount" value="' + (existing?existing.original_amount:'') + '" placeholder="0">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Outstanding Saat Ini (Rp)</label>' +
+            '<input class="form-input" type="number" id="ob-outstanding" value="' + (existing?existing.outstanding_principal:'') + '" placeholder="Sama dengan pokok jika baru">' +
+          '</div>' +
+          '<div class="form-group" id="ob-monthly-group">' +
+            '<label>Cicilan per Bulan (Rp)</label>' +
+            '<input class="form-input" type="number" id="ob-monthly" value="' + (existing&&existing.monthly_installment?existing.monthly_installment:'') + '" placeholder="0 jika revolving">' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Suku Bunga (%/tahun)</label>' +
+            '<input class="form-input" type="number" id="ob-rate" value="' + (existing?existing.interest_rate||0:0) + '" placeholder="0" step="0.01">' +
+          '</div>' +
+          '<div class="form-group" id="ob-tenor-group">' +
+            '<label>Tenor (bulan)</label>' +
+            '<input class="form-input" type="number" id="ob-tenor" value="' + (existing?existing.tenor_months||'':'') + '" placeholder="24">' +
+          '</div>' +
+          '<div class="form-group" id="ob-remaining-group">' +
+            '<label>Sisa Cicilan (bulan)</label>' +
+            '<input class="form-input" type="number" id="ob-remaining" value="' + (existing?existing.remaining_installments||'':'') + '" placeholder="0">' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Tanggal Mulai</label>' +
+            '<input class="form-input" type="date" id="ob-start" value="' + (existing?existing.start_date||'':'') + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Jatuh Tempo Berikutnya</label>' +
+            '<input class="form-input" type="date" id="ob-due" value="' + (existing?existing.next_due_date||'':'') + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Catatan</label>' +
+            '<input class="form-input" id="ob-notes" value="' + (existing?existing.notes||'':'') + '" placeholder="Opsional">' +
+          '</div>' +
+        '</div>' +
+        '<div id="ob-errors" class="error-box" style="display:none"></div>' +
+        '<div class="form-actions-bar">' +
+          '<button class="btn btn-ghost" data-cancel-ob="' + debtId + '">Batal</button>' +
+          '<button class="btn btn-primary" data-save-ob="' + debtId + '" data-ob-id="' + (existing?existing.obligation_id:'') + '">Simpan</button>' +
+        '</div>' +
+      '</div>';
+
+    area.scrollIntoView({behavior:'smooth'});
+
+    // Bind form buttons
+    var cancelBtn = area.querySelector('[data-cancel-ob]');
+    if (cancelBtn) cancelBtn.onclick = function(){ DebtModule.showObligations(cancelBtn.getAttribute('data-cancel-ob')); };
+    var saveBtn = area.querySelector('[data-save-ob]');
+    if (saveBtn) saveBtn.onclick = function(){ DebtModule._saveObligation(saveBtn.getAttribute('data-save-ob'), saveBtn.getAttribute('data-ob-id')); };
+  }
+
+  function _onObTypeChange() {
+    var type = (document.getElementById('ob-type')||{}).value;
+    var isRevolving = type === 'Revolving';
+    ['ob-tenor-group','ob-remaining-group'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.style.opacity = isRevolving ? '0.4' : '1';
+    });
+  }
+
+  function _saveObligation(debtId, existingId) {
+    var desc       = (document.getElementById('ob-desc')||{}).value||'';
+    var type       = (document.getElementById('ob-type')||{}).value||'Installment';
+    var status     = (document.getElementById('ob-status')||{}).value||'Active';
+    var amount     = parseFloat((document.getElementById('ob-amount')||{}).value)||0;
+    var outstanding= parseFloat((document.getElementById('ob-outstanding')||{}).value)||amount;
+    var monthly    = parseFloat((document.getElementById('ob-monthly')||{}).value)||0;
+    var rate       = parseFloat((document.getElementById('ob-rate')||{}).value)||0;
+    var tenor      = parseInt((document.getElementById('ob-tenor')||{}).value)||null;
+    var remaining  = parseInt((document.getElementById('ob-remaining')||{}).value)||0;
+    var start      = (document.getElementById('ob-start')||{}).value||'';
+    var due        = (document.getElementById('ob-due')||{}).value||'';
+    var notes      = (document.getElementById('ob-notes')||{}).value||'';
+    var errBox     = document.getElementById('ob-errors');
+    var facility   = DB.DebtRegister.byId(debtId);
+
+    var errors = [];
+    if (!desc)   errors.push('Deskripsi wajib diisi');
+    if (!amount) errors.push('Pokok awal wajib diisi');
+
+    if (errors.length > 0) {
+      if (errBox) { errBox.style.display='block'; errBox.innerHTML='<ul>'+errors.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul>'; }
+      return;
+    }
+    if (errBox) errBox.style.display='none';
+
+    var obId = existingId || ('OBL-' + debtId + '-' + Date.now());
+    DB.DebtObligations.save({
+      obligation_id:         obId,
+      debt_id:               debtId,
+      entity_id:             facility ? facility.entity_id : null,
+      bu_id:                 facility ? facility.bu_id : null,
+      obligation_type:       type,
+      description:           desc,
+      original_amount:       amount,
+      outstanding_principal: outstanding,
+      interest_rate:         rate,
+      interest_type:         rate > 0 ? 'Flat' : 'None',
+      billing_method:        type === 'Revolving' ? 'Revolving' : 'Fixed_Monthly',
+      monthly_installment:   monthly,
+      tenor_months:          tenor,
+      remaining_installments:remaining,
+      start_date:            start || null,
+      next_due_date:         due || null,
+      status:                status,
+      is_opening_balance:    false,
+      notes:                 notes || null,
+      created_at:            Utils.today()
+    });
+
+    Utils.toast('Kewajiban berhasil disimpan');
+    showObligations(debtId);
+  }
+
   return {
     render, showRegister, showDetail, showNew, showPayment,
     applyFilter, clearFilters, exportRegister,
@@ -10735,7 +11082,9 @@ const DebtModule = (() => {
     previewSchedule, saveNew,
     _switchTab, _deleteDebt,
     onPmtChange, onSchedChange, onTotalChange, onAllocChange,
-    savePayment
+    savePayment,
+    showObligations, showNewObligation, editObligation,
+    _renderObligationForm, _onObTypeChange, _saveObligation
   };
 
 })();
@@ -15554,6 +15903,16 @@ const App = (() => {
 
   function init() {
     DB.init();
+
+    // ── Debt Obligation auto-migration (runs once, additive only) ──
+    try {
+      var migrated = DB.DebtObligations.autoMigrate();
+      if (migrated > 0) {
+        console.log('[Finance OS] Auto-migrated ' + migrated + ' facilities to Obligation model');
+      }
+    } catch(e) {
+      console.warn('[Finance OS] Obligation migration skipped:', e.message);
+    }
     _buildSidebar();
 
     // Route from hash
