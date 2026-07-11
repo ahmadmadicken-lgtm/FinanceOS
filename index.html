@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11 Debt Obligation Model build:20260710130753 -->
+<!-- Finance OS v5.11.1 Fix event pill binding build:20260711062314 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -5811,6 +5811,22 @@ const Transactions = (() => {
 
         '</div>' + // form-card
       '</div>';   // form-page
+
+    // ── Post-render: bind event pills ────────────────────────
+    var grid = document.getElementById('event-picker-grid');
+    if (grid) {
+      grid.onclick = function(e) {
+        var pill = e.target.closest('.event-pill');
+        if (!pill) return;
+        Transactions.onEventSelect(pill.getAttribute('data-event-id'));
+      };
+    }
+
+    // ── Pre-fill edit form if editing existing txn ────────────
+    if (typeof _editTxnId !== 'undefined' && _editTxnId) {
+      _prefillEditForm(_editTxnId);
+      _editTxnId = null;
+    }
   }
 
   // ── Counter Account Display Helper ──────────────────────────
