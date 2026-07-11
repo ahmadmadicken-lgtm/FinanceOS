@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.1 Fix event pill binding build:20260711062314 -->
+<!-- Finance OS v5.11.2 Bulk Event Assignment build:20260711065833 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -14309,6 +14309,18 @@ const SettingsModule = (() => {
           </div>
 
           <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">&#9670; Bulk Event Assignment</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Assign Business Event ke transaksi lama yang belum punya event_id.
+            Sistem akan mencoba mencocokkan berdasarkan Tipe Transaksi, COA, dan cf_class.
+            Preview akan ditampilkan sebelum dieksekusi.
+          </p>
+          <div id="bulk-event-area"></div>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
+            <button class="btn btn-secondary" onclick="SettingsModule.previewBulkEvent()">&#9670; Preview Assignment</button>
+          </div>
+
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
           <h4 style="margin-bottom:.5rem">&#9729; Supabase Sync</h4>
           <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
             Data disimpan di Supabase untuk sync antar device. Mencakup semua transaksi, piutang, utang, treasury, dan <strong>fasilitas utang (Debt Management)</strong>.
@@ -14369,6 +14381,18 @@ const SettingsModule = (() => {
 
           <hr style="margin:1.5rem 0;border-color:var(--border)">
           <div id="storage-indicator-block" style="margin-bottom:1.5rem"></div>
+
+          <hr style="margin:1.5rem 0;border-color:var(--border)">
+          <h4 style="margin-bottom:.5rem">&#9670; Bulk Event Assignment</h4>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+            Assign Business Event ke transaksi lama yang belum punya event_id.
+            Sistem akan mencoba mencocokkan berdasarkan Tipe Transaksi, COA, dan cf_class.
+            Preview akan ditampilkan sebelum dieksekusi.
+          </p>
+          <div id="bulk-event-area"></div>
+          <div class="form-actions" style="gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
+            <button class="btn btn-secondary" onclick="SettingsModule.previewBulkEvent()">&#9670; Preview Assignment</button>
+          </div>
 
           <hr style="margin:1.5rem 0;border-color:var(--border)">
           <h4 style="margin-bottom:.5rem">&#9729; Supabase Sync</h4>
@@ -14601,6 +14625,164 @@ const SettingsModule = (() => {
     render();
   }
 
+  // ── Bulk Event Assignment ────────────────────────────────
+  function _mapEventId(t) {
+    // Priority 1: cf_class = Treasury
+    if (t.cf_class === 'Treasury' || t.type_id === 'TXN-06') return 'EVT-T01';
+
+    // Priority 2: type_id based mapping
+    if (t.type_id === 'TXN-05') return 'EVT-Q01'; // CEO Advance
+    if (t.type_id === 'TXN-07') return 'EVT-Q01'; // Equity Movement
+
+    if (t.type_id === 'TXN-09') return 'EVT-D01'; // CC Transaction = Belanja CC
+
+    if (t.type_id === 'TXN-08') {
+      // Liability payment - distinguish CC vs installment
+      var coa_num = parseInt(t.coa_code);
+      if (coa_num === 201 || coa_num === 202) return 'EVT-D02'; // CC/BNPL payment
+      return 'EVT-D04'; // Installment payment
+    }
+
+    if (t.type_id === 'TXN-03') return 'EVT-P01'; // Receivable
+
+    if (t.type_id === 'TXN-04') return 'EVT-D02'; // Payable payment
+
+    // Priority 3: cf_class = Financing
+    if (t.cf_class === 'Financing') {
+      if (t.direction === 'Credit') return 'EVT-D03'; // Loan drawdown
+      if (t.direction === 'Debit') {
+        var coaN = parseInt(t.coa_code);
+        if (coaN >= 200 && coaN < 300) return 'EVT-D04'; // Bayar cicilan
+        return 'EVT-D03'; // Fallback
+      }
+    }
+
+    // Priority 4: COA-based for Revenue and Expense
+    if (t.type_id === 'TXN-01' || t.cf_class === 'Operating') {
+      var cNum = parseInt(t.coa_code);
+      if (cNum >= 400 && cNum < 500) {
+        // Revenue COA - use most generic revenue event
+        return 'EVT-R01';
+      }
+      if (cNum >= 500 && cNum < 600) {
+        // Expense COA - distinguish financial vs operational
+        if (cNum === 541 || cNum === 542 || cNum === 543) return 'EVT-E03'; // Beban keuangan
+        return 'EVT-E01'; // Operational expense
+      }
+    }
+
+    if (t.type_id === 'TXN-02') {
+      var cNum2 = parseInt(t.coa_code);
+      if (cNum2 === 541 || cNum2 === 542 || cNum2 === 543) return 'EVT-E03';
+      if (cNum2 >= 400 && cNum2 < 500) return 'EVT-R04'; // Revenue via expense type (unusual)
+      return 'EVT-E02'; // General expense
+    }
+
+    // Cannot determine
+    return null;
+  }
+
+  function previewBulkEvent() {
+    var area = document.getElementById('bulk-event-area');
+    if (!area) return;
+
+    var txns = DB.Transactions.all().filter(function(t){
+      return !t.event_id && t.status === 'Posted';
+    });
+
+    if (txns.length === 0) {
+      area.innerHTML = '<div class="info-box">&#10003; Semua transaksi sudah punya Business Event.</div>';
+      return;
+    }
+
+    // Build mapping preview
+    var groups = {};
+    var cannotMap = [];
+
+    txns.forEach(function(t) {
+      var evtId = _mapEventId(t);
+      if (!evtId) {
+        cannotMap.push(t);
+        return;
+      }
+      if (!groups[evtId]) groups[evtId] = [];
+      groups[evtId].push(t);
+    });
+
+    var evtCatalog = DB.EventCatalog.all();
+    var evtMap = {};
+    evtCatalog.forEach(function(e){ evtMap[e.event_id] = e; });
+
+    var totalMappable = Object.keys(groups).reduce(function(s,k){ return s+groups[k].length; }, 0);
+
+    area.innerHTML =
+      '<div class="card" style="margin-bottom:.75rem">' +
+        '<div class="card-header">' +
+          '<div class="card-title">Preview — ' + txns.length + ' transaksi tanpa Event</div>' +
+        '</div>' +
+        '<div class="bulk-preview-summary">' +
+          '<span class="text-green">&#10003; Bisa di-assign otomatis: <strong>' + totalMappable + '</strong></span>' +
+          (cannotMap.length > 0 ? '<span class="text-yellow">&#9888; Perlu review manual: <strong>' + cannotMap.length + '</strong></span>' : '') +
+        '</div>' +
+        '<table class="table" style="font-size:.78rem;margin-top:.75rem">' +
+          '<thead><tr><th>Business Event</th><th>Domain</th><th class="text-right">Jumlah Transaksi</th><th>Contoh</th></tr></thead>' +
+          '<tbody>' +
+          Object.keys(groups).map(function(evtId) {
+            var evt  = evtMap[evtId];
+            var grp  = groups[evtId];
+            var sample = grp.slice(0,2).map(function(t){ return t.description||t.txn_id; }).join(', ');
+            return '<tr>' +
+              '<td class="text-sm font-medium">' + (evt?evt.event_name:evtId) + '</td>' +
+              '<td><span class="badge badge-blue">' + (evt?evt.domain:'—') + '</span></td>' +
+              '<td class="text-right text-sm">' + grp.length + '</td>' +
+              '<td class="text-xs text-muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">' + sample + '</td>' +
+            '</tr>';
+          }).join('') +
+          (cannotMap.length > 0
+            ? '<tr style="background:var(--yellow-dim)"><td class="text-sm text-yellow">Tidak bisa di-mapping otomatis</td><td>—</td><td class="text-right text-sm text-yellow">' + cannotMap.length + '</td><td class="text-xs text-muted">' + cannotMap.slice(0,2).map(function(t){return t.description||t.txn_id;}).join(', ') + '</td></tr>'
+            : '') +
+          '</tbody>' +
+        '</table>' +
+        '<div class="form-actions-bar" style="margin-top:.75rem">' +
+          '<button class="btn btn-ghost" id="bulk-cancel-btn">Batal</button>' +
+          '<button class="btn btn-primary" id="bulk-exec-btn">&#9670; Eksekusi Assignment (' + totalMappable + ' transaksi)</button>' +
+        '</div>' +
+      '</div>';
+
+    // Bind buttons
+    var cancelBtn2 = document.getElementById('bulk-cancel-btn');
+    if (cancelBtn2) cancelBtn2.onclick = function(){ document.getElementById('bulk-event-area').innerHTML=''; };
+    var execBtn = document.getElementById('bulk-exec-btn');
+    if (execBtn) execBtn.onclick = function(){ _executeBulkEvent(groups); };
+  }
+
+  function _executeBulkEvent(groups) {
+    var total = 0;
+    Object.keys(groups).forEach(function(evtId) {
+      groups[evtId].forEach(function(t) {
+        // Get rule for this event
+        var result = DB.RuleEngine.derive(evtId, {
+          account_id: t.account_id,
+          coa_code:   t.coa_code,
+          direction:  t.direction
+        });
+        DB.Transactions.save(Object.assign({}, t, {
+          event_id:       evtId,
+          cf_class:       result && result.cf_class ? result.cf_class : t.cf_class,
+          override_level: t.override_level || 1,
+          rule_snapshot:  result ? result.snapshot : null
+        }));
+        total++;
+      });
+    });
+
+    Utils.toast(total + ' transaksi berhasil di-assign Business Event. Sync ke Supabase dalam 1.5 detik.');
+    document.getElementById('bulk-event-area').innerHTML =
+      '<div class="info-box" style="color:var(--green);border-color:var(--green)">' +
+        '&#10003; ' + total + ' transaksi berhasil di-assign. Data akan tersinkron ke Supabase.' +
+      '</div>';
+  }
+
   function _renderStorageIndicator() {
     var block = document.getElementById('storage-indicator-block');
     if (!block) return;
@@ -14702,7 +14884,7 @@ const SettingsModule = (() => {
         (result.debt_register.remote_has_data ? ' · Remote: ada data' : ' · Remote: kosong') + '</span>';
   }
 
-  return { render, save, exportData, importData, migrateTxnIds, checkSync, lockPeriod, unlockPeriod, loadDirectionReview, flipDirection, markReviewed };
+  return { render, save, exportData, importData, migrateTxnIds, checkSync, lockPeriod, unlockPeriod, loadDirectionReview, flipDirection, markReviewed, previewBulkEvent };
 })();
 
 // ============================================================
