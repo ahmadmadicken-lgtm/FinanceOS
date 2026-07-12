@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.1 Fix EVT-D04 direction override build:20260712132825 -->
+<!-- Finance OS v5.12.2 Immediate push after edit build:20260712133502 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4968,6 +4968,11 @@ const SupabaseSync = (() => {
     }
   }
 
+  async function pushNow(lsKey) {
+    await pushAll(lsKey);
+    _pendingPush = false;
+  }
+
   return {
     init,
     queueSync,
@@ -4979,6 +4984,7 @@ const SupabaseSync = (() => {
     manualSync,
     manualPull,
     checkSyncHealth
+  , pushNow
   };
 
 })();
@@ -6576,7 +6582,15 @@ const Transactions = (() => {
     });
 
     DB.Transactions.save(updated);
-    Utils.toast('Transaksi berhasil diupdate');
+    Utils.toast('Transaksi berhasil diupdate — menyinkron ke Supabase...');
+    // Immediately push to Supabase after edit (no delay)
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+      SupabaseSync.pushNow('fos_transactions').then(function() {
+        Utils.toast('Transaksi tersimpan dan tersinkron');
+      }).catch(function() {
+        Utils.toast('Tersimpan lokal — sync berikutnya akan mengirim ke Supabase', 'warning');
+      });
+    }
     render();
   }
 
