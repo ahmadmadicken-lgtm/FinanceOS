@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.2 Bulk Event Assignment build:20260711065833 -->
+<!-- Finance OS v5.11.3 EVT-T01 direction fix build:20260712042211 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -5748,7 +5748,7 @@ const Transactions = (() => {
                   '<option value="Debit">&#8599; Cash In (Debit)</option>' +
                   '<option value="Credit">&#8600; Cash Out (Credit)</option>' +
                 '</select>' +
-                '<small class="form-hint">Cash In = uang masuk ke rekening ini · Cash Out = uang keluar</small>' +
+                '<small class="form-hint" id="dir-hint">Cash In = uang masuk ke rekening ini · Cash Out = uang keluar</small>' +
                 '<div id="dir-warning" class="dir-warning" style="display:none"></div>' +
                 '<small class="form-hint" id="dir-hint">Akan diisi otomatis saat Tipe dan COA dipilih</small>' +
               '</div>' +
@@ -5895,9 +5895,10 @@ const Transactions = (() => {
         if (coa.coa_category === 'Revenue')   return { dir: 'Credit', source: 'COA: Revenue selalu Credit' };
         if (coa.coa_category === 'Expense')   return { dir: 'Debit',  source: 'COA: Expense selalu Debit' };
         if (coa.coa_category === 'Asset') {
-          // Asset increases with Debit (receivable, cash in)
-          // but CEO Advance or treasury source = Credit
-          if (typeId === 'TXN-06') return { dir: 'Credit', source: 'Treasury keluar dari akun ini' };
+          // Asset increases with Debit (cash in) or decreases with Credit (cash out)
+          // For Treasury (TXN-06): direction depends on which leg this is
+          // Do NOT auto-lock direction — let user choose Cash In or Cash Out
+          if (typeId === 'TXN-06') return null; // unlock: user picks direction
           return { dir: 'Debit', source: 'COA: Asset naik dengan Debit' };
         }
         if (coa.coa_category === 'Liability') {
@@ -6043,6 +6044,24 @@ const Transactions = (() => {
     // Show/hide CC section
     var ccSection = document.getElementById('cc-section');
     if (ccSection) ccSection.style.display = result.internal_type_id === 'TXN-09' ? 'block' : 'none';
+
+    // Treasury domain: unlock direction, show clear prompt
+    var dirSel   = document.getElementById('f-direction');
+    var dirLabel = document.querySelector('label[for="f-direction"], .dir-label');
+    var dirHint  = document.getElementById('dir-hint');
+    var isTreasury = (result.internal_type_id === 'TXN-06' ||
+                      (result.cf_class && result.cf_class === 'Treasury'));
+    if (isTreasury && dirSel) {
+      // Clear direction so user must choose
+      dirSel.value    = '';
+      dirSel.disabled = false;
+      // Update options to show Treasury-specific language
+      dirSel.innerHTML =
+        '<option value="">— Pilih arah transfer —</option>' +
+        '<option value="Credit">&#8600; Cash Out — uang KELUAR dari rekening ini</option>' +
+        '<option value="Debit">&#8599; Cash In — uang MASUK ke rekening ini</option>';
+      if (dirHint) dirHint.textContent = 'Treasury: pilih Cash Out jika ini rekening sumber, Cash In jika ini rekening tujuan';
+    }
 
     // Override check
     _checkOverrideLevel(result);
