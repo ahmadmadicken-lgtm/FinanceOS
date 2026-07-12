@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.6 COA-aware direction edit build:20260712124906 -->
+<!-- Finance OS v5.11.7 Transaction filter fix build:20260712125359 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -5433,12 +5433,17 @@ const Transactions = (() => {
 
   // ── State ─────────────────────────────────────────────────
   var _pendingDeleteId = null;
-  let _filters = { entity: 'ALL', bu: 'ALL', type: 'ALL', account: 'ALL', status: 'Posted', search: '', dateFrom: '', dateTo: '' };
+  let _filters = { entity: 'ALL', bu: 'ALL', type: 'ALL', account: 'ALL', status: 'Posted', search: '', period: '', dateFrom: '', dateTo: '' };
   let _view = 'list'; // 'list' | 'new'
 
   // ── Entry Point ───────────────────────────────────────────
   function render() {
     _view = 'list';
+    // Sync with global entity/period selector
+    var globalEntity = typeof App !== 'undefined' ? App.getEntity() : 'ALL';
+    var globalPeriod = typeof App !== 'undefined' ? App.getPeriod() : '';
+    if (globalEntity && globalEntity !== 'ALL') _filters.entity = globalEntity;
+    if (globalPeriod && globalPeriod !== 'ALL') _filters.period = globalPeriod;
     _renderList();
   }
 
@@ -5485,6 +5490,10 @@ const Transactions = (() => {
         ['Posted','Draft','Voided'].map(function(s){ return '<option value="' + s + '" ' + (_filters.status===s?'selected':'') + '>' + s + '</option>'; }).join('') +
       '</select>' +
       '<input class="filter-input" id="f-search" placeholder="Cari deskripsi..." value="' + _filters.search + '" oninput="Transactions.applyFilter()">' +
+      '<select class="filter-select" id="f-period" onchange="Transactions.applyFilter()" title="Filter periode">' +
+        '<option value="">Semua Periode</option>' +
+        Utils.last12Periods().map(function(p){ return '<option value="' + p + '" ' + (_filters.period===p?'selected':'') + '>' + Utils.periodLabel(p) + '</option>'; }).join('') +
+      '</select>' +
       '<input class="filter-input" type="date" id="f-from" value="' + _filters.dateFrom + '" onchange="Transactions.applyFilter()" title="Dari tanggal">' +
       '<input class="filter-input" type="date" id="f-to" value="' + _filters.dateTo + '" onchange="Transactions.applyFilter()" title="Sampai tanggal">' +
       '<button class="btn btn-ghost btn-sm" onclick="Transactions.clearFilters()">Reset</button>';
@@ -5578,6 +5587,7 @@ const Transactions = (() => {
     if (_filters.type    !== 'ALL') txns = txns.filter(function(t){ return t.type_id    === _filters.type; });
     if (_filters.account !== 'ALL') txns = txns.filter(function(t){ return t.account_id === _filters.account; });
     if (_filters.status  !== 'ALL') txns = txns.filter(function(t){ return t.status     === _filters.status; });
+    if (_filters.period)   txns = txns.filter(function(t){ return t.period === _filters.period; });
     if (_filters.dateFrom) txns = txns.filter(function(t){ return t.txn_date >= _filters.dateFrom; });
     if (_filters.dateTo)   txns = txns.filter(function(t){ return t.txn_date <= _filters.dateTo; });
     if (_filters.search) {
@@ -6557,13 +6567,14 @@ const Transactions = (() => {
     _filters.account = (document.getElementById('f-account') || {}).value || 'ALL';
     _filters.status  = (document.getElementById('f-status')  || {}).value || 'ALL';
     _filters.search  = (document.getElementById('f-search')  || {}).value || '';
+    _filters.period  = (document.getElementById('f-period')  || {}).value || '';
     _filters.dateFrom= (document.getElementById('f-from')    || {}).value || '';
     _filters.dateTo  = (document.getElementById('f-to')      || {}).value || '';
     _refreshTable();
   }
 
   function clearFilters() {
-    _filters = { entity:'ALL', bu:'ALL', type:'ALL', account:'ALL', status:'Posted', search:'', dateFrom:'', dateTo:'' };
+    _filters = { entity:'ALL', bu:'ALL', type:'ALL', account:'ALL', status:'Posted', search:'', period:'', dateFrom:'', dateTo:'' };
     _renderList();
   }
 
