@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.9 autoPull push-first + filter fixes build:20260712130841 -->
+<!-- Finance OS v5.12 Fix pendingPush race condition build:20260712132416 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4918,6 +4918,7 @@ const SupabaseSync = (() => {
   var _bulkTimer = null;
 
   function queueBulkSync(lsKey) {
+    _pendingPush = true;  // Mark that we have unsaved local changes
     _bulkQueue.add(lsKey);
     clearTimeout(_bulkTimer);
     _bulkTimer = setTimeout(async function() {
@@ -4929,6 +4930,7 @@ const SupabaseSync = (() => {
         }
         await pushSettings();
         _bulkQueue.clear();
+        _pendingPush = false;  // All pushed
         _showSyncStatus('synced');
       } catch(e) {
         console.error('[SupabaseSync] Bulk sync failed:', e);
