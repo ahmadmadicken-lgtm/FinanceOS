@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.4 COA-aware direction labels all types build:20260712140626 -->
+<!-- Finance OS v5.12.5 COA 115 + EVT-P03/P04/P05 Friends Loan build:20260712221154 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -2477,6 +2477,28 @@ const EVENT_CATALOG_SEED = {
       internal_type_id: 'TXN-05', status: 'Active',
       replaced_by_event_id: null, created_at: '2026-01-01' },
 
+    // ── DOMAIN: RECEIVABLE (Friends Loan) ────────────────────
+    { event_id: 'EVT-P03', domain: 'Receivable', process: 'Pinjaman Pribadi',
+      event_name: 'Beri Pinjaman ke Teman',
+      description: 'Transfer dana pinjaman ke teman/rekan dari rekening manapun',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-03', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-P04', domain: 'Receivable', process: 'Pinjaman Pribadi',
+      event_name: 'Terima Cicilan Pinjaman Teman',
+      description: 'Penerimaan cicilan dari teman/rekan yang meminjam uang',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-03', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
+    { event_id: 'EVT-P05', domain: 'Receivable', process: 'Pinjaman Pribadi',
+      event_name: 'Terima Pelunasan Pinjaman Teman',
+      description: 'Penerimaan pelunasan penuh dari teman/rekan yang meminjam uang',
+      event_category: 'System', entity_scope: null,
+      internal_type_id: 'TXN-03', status: 'Active',
+      replaced_by_event_id: null, created_at: '2026-01-01' },
+
     // ── DOMAIN: EQUITY ────────────────────────────────────────
     { event_id: 'EVT-Q01', domain: 'Equity', process: 'Modal',
       event_name: 'Catat Pergerakan Modal / Prive',
@@ -2603,7 +2625,26 @@ const EVENT_CATALOG_SEED = {
       account_type_filter: ['Bank'],
       counterparty_required: false, override_minimum_level: 2,
       effective_date: '2026-01-01', expiry_date: null,
-      validation_rules: { max_amount: 10000000000 } }
+      validation_rules: { max_amount: 10000000000 } },
+
+    // ── Friends Loan Rules ────────────────────────────────────
+    { rule_id: 'RUL-P03', event_id: 'EVT-P03',
+      default_coa: '115', direction: 'Credit', cf_class: 'Operating',
+      account_type_filter: [], counterparty_required: true,
+      override_minimum_level: 1, effective_date: '2026-01-01',
+      expiry_date: null, validation_rules: {} },
+
+    { rule_id: 'RUL-P04', event_id: 'EVT-P04',
+      default_coa: '115', direction: 'Credit', cf_class: 'Operating',
+      account_type_filter: [], counterparty_required: true,
+      override_minimum_level: 1, effective_date: '2026-01-01',
+      expiry_date: null, validation_rules: {} },
+
+    { rule_id: 'RUL-P05', event_id: 'EVT-P05',
+      default_coa: '115', direction: 'Credit', cf_class: 'Operating',
+      account_type_filter: [], counterparty_required: true,
+      override_minimum_level: 1, effective_date: '2026-01-01',
+      expiry_date: null, validation_rules: {} }
   ]
 };
 
@@ -16214,6 +16255,80 @@ const App = (() => {
       }
     } catch(e) {
       console.warn('[Finance OS] Obligation migration skipped:', e.message);
+    }
+
+    // ── COA Migration: add new COA codes if missing ───────────
+    try {
+      var newCOAs = [
+        { coa_code: '115', coa_name: 'Piutang Pinjaman Pribadi', coa_category: 'Asset',
+          coa_subcategory: 'Piutang', liquidity_class: 'Aset Lancar',
+          fs_line: 'Balance Sheet', normal_balance: 'Debit', status: 'Active' }
+      ];
+      newCOAs.forEach(function(coa) {
+        if (!DB.COA.byCode(coa.coa_code)) {
+          DB.COA.save(coa);
+          console.log('[Finance OS] Added COA:', coa.coa_code, coa.coa_name);
+        }
+      });
+    } catch(e) {
+      console.warn('[Finance OS] COA migration skipped:', e.message);
+    }
+
+    // ── Event Catalog Migration: add new events if missing ───
+    try {
+      var newEvents = [
+        { event_id: 'EVT-P03', domain: 'Receivable', process: 'Pinjaman Pribadi',
+          event_name: 'Beri Pinjaman ke Teman',
+          description: 'Transfer dana pinjaman ke teman/rekan dari rekening manapun',
+          event_category: 'System', entity_scope: null,
+          internal_type_id: 'TXN-03', status: 'Active',
+          replaced_by_event_id: null, created_at: '2026-01-01' },
+        { event_id: 'EVT-P04', domain: 'Receivable', process: 'Pinjaman Pribadi',
+          event_name: 'Terima Cicilan Pinjaman Teman',
+          description: 'Penerimaan cicilan dari teman/rekan yang meminjam uang',
+          event_category: 'System', entity_scope: null,
+          internal_type_id: 'TXN-03', status: 'Active',
+          replaced_by_event_id: null, created_at: '2026-01-01' },
+        { event_id: 'EVT-P05', domain: 'Receivable', process: 'Pinjaman Pribadi',
+          event_name: 'Terima Pelunasan Pinjaman Teman',
+          description: 'Penerimaan pelunasan penuh dari teman/rekan yang meminjam uang',
+          event_category: 'System', entity_scope: null,
+          internal_type_id: 'TXN-03', status: 'Active',
+          replaced_by_event_id: null, created_at: '2026-01-01' }
+      ];
+      newEvents.forEach(function(evt) {
+        if (!DB.EventCatalog.byId(evt.event_id)) {
+          DB.EventCatalog.save(evt);
+          console.log('[Finance OS] Added event:', evt.event_id, evt.event_name);
+        }
+      });
+
+      var newRules = [
+        { rule_id: 'RUL-P03', event_id: 'EVT-P03',
+          default_coa: '115', direction: 'Credit', cf_class: 'Operating',
+          account_type_filter: [], counterparty_required: true,
+          override_minimum_level: 1, effective_date: '2026-01-01',
+          expiry_date: null, validation_rules: {}, status: 'Active' },
+        { rule_id: 'RUL-P04', event_id: 'EVT-P04',
+          default_coa: '115', direction: 'Credit', cf_class: 'Operating',
+          account_type_filter: [], counterparty_required: true,
+          override_minimum_level: 1, effective_date: '2026-01-01',
+          expiry_date: null, validation_rules: {}, status: 'Active' },
+        { rule_id: 'RUL-P05', event_id: 'EVT-P05',
+          default_coa: '115', direction: 'Credit', cf_class: 'Operating',
+          account_type_filter: [], counterparty_required: true,
+          override_minimum_level: 1, effective_date: '2026-01-01',
+          expiry_date: null, validation_rules: {}, status: 'Active' }
+      ];
+      newRules.forEach(function(rule) {
+        var existing = DB.EventRules.all().find(function(r){ return r.rule_id === rule.rule_id; });
+        if (!existing) {
+          DB.EventRules.save(rule);
+          console.log('[Finance OS] Added rule:', rule.rule_id, 'for', rule.event_id);
+        }
+      });
+    } catch(e) {
+      console.warn('[Finance OS] Event migration skipped:', e.message);
     }
     _buildSidebar();
 
