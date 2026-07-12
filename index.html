@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.3 EVT-T01 direction fix build:20260712042211 -->
+<!-- Finance OS v5.11.4 BU entity fix build:20260712110440 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -13555,7 +13555,7 @@ const Masters = (() => {
     const entities = DB.Entities.active();
     return _masterHeader('Business Unit', 'Masters.addBU()') +
       '<div class="master-filter-row">' +
-        '<select class="filter-select" id="mf-bu-entity" onchange="Masters.filterBU()">' +
+        '<select class="filter-select" id="filter-bu-entity" onchange="Masters.filterBU()">' +
           '<option value="ALL">Semua Entity</option>' +
           entities.map(function(e){ return '<option value="'+e.entity_id+'">'+e.entity_name+'</option>'; }).join('') +
         '</select>' +
@@ -13584,7 +13584,7 @@ const Masters = (() => {
   }
 
   function filterBU() {
-    const entityId = (document.getElementById('mf-bu-entity')||{}).value || 'ALL';
+    const entityId = (document.getElementById('filter-bu-entity')||{}).value || 'ALL';
     const list = entityId==='ALL' ? DB.BU.all() : DB.BU.all().filter(function(b){ return b.entity_id===entityId; });
     const tbody = document.getElementById('bu-tbody');
     if (tbody) tbody.innerHTML = _buRows(list);
