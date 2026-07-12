@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.2 Immediate push after edit build:20260712133502 -->
+<!-- Finance OS v5.12.3 Debt direction-first fix build:20260712134012 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4331,26 +4331,29 @@ const Utils = (() => {
     // Expense domain
     if (domain === 'Expense') return 'Cash Out';
 
-    // Debt domain — context-sensitive by specific event + direction confirmation
+    // Debt domain — direction is the authoritative signal for Liability COA
+    // Event_id is a hint, but direction + COA is the ground truth
     if (domain === 'Debt') {
-      // EVT-D03: Cairkan Pinjaman → Cash In (loan received)
-      // BUT if direction=Debit on Liability COA → still Cash In (correct)
-      // If direction=Credit on Liability COA → also Cash In (liability increases)
-      if (event_id === 'EVT-D03') return 'Cash In';
-      // EVT-D01: Belanja CC/BNPL → Cash Out
-      if (event_id === 'EVT-D01') return 'Cash Out';
-      // EVT-D02: Bayar CC → Cash Out
-      if (event_id === 'EVT-D02') return 'Cash Out';
-      // EVT-D04: Bayar Cicilan → normally Cash Out
-      // BUT if COA is Liability (2xx) and direction=Credit → Cash In
-      // This handles cases where EVT-D04 was wrongly assigned to a loan receipt
-      if (event_id === 'EVT-D04') {
-        if (coa_code) {
-          var coaNum4 = parseInt(coa_code);
-          if (coaNum4 >= 200 && coaNum4 < 300 && direction === 'Credit') return 'Cash In';
+      // For ALL Debt events: if COA is Liability (2xx), trust the direction
+      // Credit on Liability = liability increases = received money = Cash In
+      // Debit on Liability = liability decreases = paid money = Cash Out
+      if (coa_code) {
+        var coaNumD = parseInt(coa_code);
+        if (coaNumD >= 200 && coaNumD < 300) {
+          if (direction === 'Credit') return 'Cash In';
+          if (direction === 'Debit')  return 'Cash Out';
         }
-        return 'Cash Out';
+        // For Cash/Bank COA (1xx) in Debt domain: Debit = Cash In, Credit = Cash Out
+        if (coaNumD >= 100 && coaNumD < 200) {
+          if (direction === 'Debit')  return 'Cash In';
+          if (direction === 'Credit') return 'Cash Out';
+        }
       }
+      // Fallback to event-based if no COA match
+      if (event_id === 'EVT-D03') return 'Cash In';
+      if (event_id === 'EVT-D01') return 'Cash Out';
+      if (event_id === 'EVT-D02') return 'Cash Out';
+      if (event_id === 'EVT-D04') return 'Cash Out';
       // Fallback within Debt domain: use COA account type
       // Cash/Bank account COA (1xx): Debit = money in, Credit = money out
       // Liability COA (2xx): Debit = paying off debt (cash out), Credit = taking on debt (cash in)
