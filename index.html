@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.3 Debt direction-first fix build:20260712134012 -->
+<!-- Finance OS v5.12.4 COA-aware direction labels all types build:20260712140626 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -6469,16 +6469,35 @@ const Transactions = (() => {
                   var sub = coa ? (coa.coa_subcategory||'') : '';
                   // For Liability & Equity: Credit = increase (Cash In), Debit = decrease (Cash Out)
                   // For Asset (Cash/Bank) & Expense: Debit = Cash In, Credit = Cash Out
+                  // Context-aware labels based on COA category AND subcategory
                   var isLiabilityOrEquity = (cat === 'Liability' || cat === 'Equity');
-                  var debitLabel  = isLiabilityOrEquity
-                    ? '&#8600; Cash Out — bayar/kurangi kewajiban (Debit)'
-                    : '&#8599; Cash In — uang MASUK ke rekening (Debit)';
-                  var creditLabel = isLiabilityOrEquity
-                    ? '&#8599; Cash In — terima pinjaman/kewajiban bertambah (Credit)'
-                    : '&#8600; Cash Out — uang KELUAR dari rekening (Credit)';
-                  var hint = isLiabilityOrEquity
-                    ? 'COA Kewajiban: Credit = menerima pinjaman (Cash In) · Debit = membayar (Cash Out)'
-                    : 'COA Aset/Beban: Debit = uang masuk (Cash In) · Credit = uang keluar (Cash Out)';
+                  // Piutang/Receivable Asset: Credit = collect (Cash In), Debit = new receivable (Cash Out)
+                  var isReceivable = (cat === 'Asset' && (sub === 'Piutang' || sub === 'Uang Muka Pemilik'));
+                  // Kas & Bank: Debit = Cash In, Credit = Cash Out
+                  var isCash = (cat === 'Asset' && sub === 'Kas & Bank');
+                  var debitLabel, creditLabel, hint;
+                  if (isLiabilityOrEquity) {
+                    debitLabel  = '&#8600; Cash Out — bayar/kurangi kewajiban (Debit)';
+                    creditLabel = '&#8599; Cash In — terima pinjaman/kewajiban bertambah (Credit)';
+                    hint = 'COA Kewajiban: Credit = terima pinjaman (Cash In) · Debit = bayar (Cash Out)';
+                  } else if (isReceivable) {
+                    debitLabel  = '&#8600; Cash Out — catat piutang baru / beri pinjaman (Debit)';
+                    creditLabel = '&#8599; Cash In — terima pembayaran piutang (Credit)';
+                    hint = 'COA Piutang: Credit = terima pembayaran (Cash In) · Debit = catat piutang baru (Cash Out)';
+                  } else if (cat === 'Expense') {
+                    debitLabel  = '&#8600; Cash Out — catat beban (Debit)';
+                    creditLabel = '&#8599; Cash In — refund/pembalikan beban (Credit)';
+                    hint = 'COA Beban: Debit = bayar beban (Cash Out) · Credit = refund (Cash In)';
+                  } else if (cat === 'Revenue') {
+                    debitLabel  = '&#8600; Cash Out — refund/pembalikan pendapatan (Debit)';
+                    creditLabel = '&#8599; Cash In — terima pendapatan (Credit)';
+                    hint = 'COA Pendapatan: Credit = terima uang (Cash In) · Debit = refund (Cash Out)';
+                  } else {
+                    // Default: Kas & Bank
+                    debitLabel  = '&#8599; Cash In — uang MASUK ke rekening (Debit)';
+                    creditLabel = '&#8600; Cash Out — uang KELUAR dari rekening (Credit)';
+                    hint = 'COA Kas: Debit = uang masuk (Cash In) · Credit = uang keluar (Cash Out)';
+                  }
                   return '<select class="form-input" id="f-direction">' +
                     '<option value="">— Pilih —</option>' +
                     '<option value="Debit" '  + (t.direction === 'Debit'  ? 'selected' : '') + '>' + debitLabel  + '</option>' +
