@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.4 BU entity fix build:20260712110440 -->
+<!-- Finance OS v5.11.5 Edit form Cash In Out fix build:20260712122830 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -6426,9 +6426,10 @@ const Transactions = (() => {
                 '<label>Arah <span class="required">*</span> <span class="text-muted text-xs">(auto dari Business Event)</span></label>' +
                 '<select class="form-input" id="f-direction">' +
                   '<option value="">— Pilih —</option>' +
-                  '<option value="Debit" ' + (t.direction === 'Debit' ? 'selected' : '') + '>Debit</option>' +
-                  '<option value="Credit" ' + (t.direction === 'Credit' ? 'selected' : '') + '>Credit</option>' +
+                  '<option value="Debit" '  + (t.direction === 'Debit'  ? 'selected' : '') + '>&#8599; Cash In — uang MASUK ke rekening ini (Debit)</option>' +
+                  '<option value="Credit" ' + (t.direction === 'Credit' ? 'selected' : '') + '>&#8600; Cash Out — uang KELUAR dari rekening ini (Credit)</option>' +
                 '</select>' +
+                '<small class="form-hint">Cash In = Debit = uang bertambah di rekening · Cash Out = Credit = uang berkurang</small>' +
               '</div>' +
             '</div>' +
           '</div>' +
