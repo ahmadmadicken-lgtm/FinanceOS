@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12 Fix pendingPush race condition build:20260712132416 -->
+<!-- Finance OS v5.12.1 Fix EVT-D04 direction override build:20260712132825 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4331,16 +4331,26 @@ const Utils = (() => {
     // Expense domain
     if (domain === 'Expense') return 'Cash Out';
 
-    // Debt domain — context-sensitive by specific event
+    // Debt domain — context-sensitive by specific event + direction confirmation
     if (domain === 'Debt') {
-      // EVT-D03: Cairkan Pinjaman → Cash In (loan received into bank)
+      // EVT-D03: Cairkan Pinjaman → Cash In (loan received)
+      // BUT if direction=Debit on Liability COA → still Cash In (correct)
+      // If direction=Credit on Liability COA → also Cash In (liability increases)
       if (event_id === 'EVT-D03') return 'Cash In';
-      // EVT-D01: Belanja CC/BNPL → Cash Out (spending)
+      // EVT-D01: Belanja CC/BNPL → Cash Out
       if (event_id === 'EVT-D01') return 'Cash Out';
-      // EVT-D02: Bayar CC → Cash Out (payment leaving bank)
+      // EVT-D02: Bayar CC → Cash Out
       if (event_id === 'EVT-D02') return 'Cash Out';
-      // EVT-D04: Bayar Cicilan → Cash Out (installment leaving bank)
-      if (event_id === 'EVT-D04') return 'Cash Out';
+      // EVT-D04: Bayar Cicilan → normally Cash Out
+      // BUT if COA is Liability (2xx) and direction=Credit → Cash In
+      // This handles cases where EVT-D04 was wrongly assigned to a loan receipt
+      if (event_id === 'EVT-D04') {
+        if (coa_code) {
+          var coaNum4 = parseInt(coa_code);
+          if (coaNum4 >= 200 && coaNum4 < 300 && direction === 'Credit') return 'Cash In';
+        }
+        return 'Cash Out';
+      }
       // Fallback within Debt domain: use COA account type
       // Cash/Bank account COA (1xx): Debit = money in, Credit = money out
       // Liability COA (2xx): Debit = paying off debt (cash out), Credit = taking on debt (cash in)
