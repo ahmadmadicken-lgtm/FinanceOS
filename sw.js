@@ -3,7 +3,7 @@
 // Fixed for GitHub Pages subdirectory /FinanceOS/
 // ============================================================
 
-const CACHE_NAME = 'finance-os-v3.8';
+const CACHE_NAME = 'finance-os-v20260712';
 const BASE = '/FinanceOS';
 const ASSETS = [
   BASE + '/',
