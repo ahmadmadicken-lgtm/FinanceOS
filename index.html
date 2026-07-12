@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.5 Edit form Cash In Out fix build:20260712122830 -->
+<!-- Finance OS v5.11.6 COA-aware direction edit build:20260712124906 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -6424,12 +6424,29 @@ const Transactions = (() => {
               '</div>' +
               '<div class="form-group">' +
                 '<label>Arah <span class="required">*</span> <span class="text-muted text-xs">(auto dari Business Event)</span></label>' +
-                '<select class="form-input" id="f-direction">' +
-                  '<option value="">— Pilih —</option>' +
-                  '<option value="Debit" '  + (t.direction === 'Debit'  ? 'selected' : '') + '>&#8599; Cash In — uang MASUK ke rekening ini (Debit)</option>' +
-                  '<option value="Credit" ' + (t.direction === 'Credit' ? 'selected' : '') + '>&#8600; Cash Out — uang KELUAR dari rekening ini (Credit)</option>' +
-                '</select>' +
-                '<small class="form-hint">Cash In = Debit = uang bertambah di rekening · Cash Out = Credit = uang berkurang</small>' +
+                (function() {
+                  var coa = DB.COA.byCode(t.coa_code);
+                  var cat = coa ? coa.coa_category : 'Asset';
+                  var sub = coa ? (coa.coa_subcategory||'') : '';
+                  // For Liability & Equity: Credit = increase (Cash In), Debit = decrease (Cash Out)
+                  // For Asset (Cash/Bank) & Expense: Debit = Cash In, Credit = Cash Out
+                  var isLiabilityOrEquity = (cat === 'Liability' || cat === 'Equity');
+                  var debitLabel  = isLiabilityOrEquity
+                    ? '&#8600; Cash Out — bayar/kurangi kewajiban (Debit)'
+                    : '&#8599; Cash In — uang MASUK ke rekening (Debit)';
+                  var creditLabel = isLiabilityOrEquity
+                    ? '&#8599; Cash In — terima pinjaman/kewajiban bertambah (Credit)'
+                    : '&#8600; Cash Out — uang KELUAR dari rekening (Credit)';
+                  var hint = isLiabilityOrEquity
+                    ? 'COA Kewajiban: Credit = menerima pinjaman (Cash In) · Debit = membayar (Cash Out)'
+                    : 'COA Aset/Beban: Debit = uang masuk (Cash In) · Credit = uang keluar (Cash Out)';
+                  return '<select class="form-input" id="f-direction">' +
+                    '<option value="">— Pilih —</option>' +
+                    '<option value="Debit" '  + (t.direction === 'Debit'  ? 'selected' : '') + '>' + debitLabel  + '</option>' +
+                    '<option value="Credit" ' + (t.direction === 'Credit' ? 'selected' : '') + '>' + creditLabel + '</option>' +
+                  '</select>' +
+                  '<small class="form-hint">' + hint + '</small>';
+                })() +
               '</div>' +
             '</div>' +
           '</div>' +
