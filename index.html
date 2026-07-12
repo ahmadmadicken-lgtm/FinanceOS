@@ -1,4 +1,4 @@
-<!-- Finance OS v5.11.7 Transaction filter fix build:20260712125359 -->
+<!-- Finance OS v5.11.9 autoPull push-first + filter fixes build:20260712130841 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -4662,6 +4662,14 @@ const SupabaseSync = (() => {
     if (!_online || _syncing) return;
     try {
       _showSyncStatus('syncing');
+      // Push pending local changes FIRST before pulling
+      // Prevents race condition where pull overwrites unsaved local edits
+      if (_pendingPush) {
+        for (var lsKey in TABLE_MAP) {
+          try { await pushAll(lsKey); } catch(e) { /* continue */ }
+        }
+        _pendingPush = false;
+      }
       await pullFromSupabase();
       _lastPullTime = Date.now();
       _showSyncStatus('synced');
@@ -5439,10 +5447,10 @@ const Transactions = (() => {
   // ── Entry Point ───────────────────────────────────────────
   function render() {
     _view = 'list';
-    // Sync with global entity/period selector
+    // Sync with global entity/period selector — always, including ALL
     var globalEntity = typeof App !== 'undefined' ? App.getEntity() : 'ALL';
     var globalPeriod = typeof App !== 'undefined' ? App.getPeriod() : '';
-    if (globalEntity && globalEntity !== 'ALL') _filters.entity = globalEntity;
+    _filters.entity = globalEntity || 'ALL';
     if (globalPeriod && globalPeriod !== 'ALL') _filters.period = globalPeriod;
     _renderList();
   }
