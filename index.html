@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.5 Treasury reads fos_transactions build:20260714104043 -->
+<!-- Finance OS v5.12.6 Treasury auto-pair build:20260714110642 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -8416,23 +8416,65 @@ const Treasury = (() => {
 
     // Secondary source: fos_transactions with cf_class='Treasury' or type_id='TXN-06'
     // These are transfers entered via Transaction Form (EVT-T01)
-    // Convert them to the same leg format as fos_treasury
-    var txnLegs = DB.Transactions.all().filter(function(t) {
+    var treasuryTxns = DB.Transactions.all().filter(function(t) {
       return (t.cf_class === 'Treasury' || t.type_id === 'TXN-06') &&
              t.status === 'Posted' &&
              !treasuryLegs.some(function(l){ return l.txn_id === t.txn_id; });
-    }).map(function(t) {
-      return {
-        try_ref:    t.reference_id || ('TXN-' + t.txn_id),
-        try_date:   t.txn_date,
-        account_id: t.account_id,
-        entity_id:  t.entity_id,
-        amount:     t.amount,
-        leg:        t.direction === 'Credit' ? 'Source' : 'Destination',
-        notes:      t.description || '',
-        txn_id:     t.txn_id,
-        from_txn:   true
-      };
+    });
+
+    // Auto-pair: group transactions with same date + same amount as a pair
+    // Credit leg = Source (money leaving), Debit leg = Destination (money arriving)
+    // Use "DATE|AMOUNT" as the shared try_ref key for pairing
+    var pairMap = {};
+    treasuryTxns.forEach(function(t) {
+      var pairKey = t.txn_date + '|' + t.amount;
+      if (!pairMap[pairKey]) pairMap[pairKey] = [];
+      pairMap[pairKey].push(t);
+    });
+
+    var txnLegs = [];
+    var usedTxnIds = {};
+
+    Object.keys(pairMap).forEach(function(pairKey) {
+      var group = pairMap[pairKey];
+      // Find Credit (Source) and Debit (Destination) legs
+      var sources = group.filter(function(t){ return t.direction === 'Credit'; });
+      var dests   = group.filter(function(t){ return t.direction === 'Debit'; });
+
+      // Pair them up
+      var pairs = Math.min(sources.length, dests.length);
+      for (var i = 0; i < pairs; i++) {
+        var src = sources[i];
+        var dst = dests[i];
+        var sharedRef = 'PAIR-' + src.txn_id + '-' + dst.txn_id;
+        txnLegs.push({
+          try_ref: sharedRef, try_date: src.txn_date,
+          account_id: src.account_id, entity_id: src.entity_id,
+          amount: src.amount, leg: 'Source',
+          notes: src.description || '', txn_id: src.txn_id, from_txn: true
+        });
+        txnLegs.push({
+          try_ref: sharedRef, try_date: dst.txn_date,
+          account_id: dst.account_id, entity_id: dst.entity_id,
+          amount: dst.amount, leg: 'Destination',
+          notes: dst.description || '', txn_id: dst.txn_id, from_txn: true
+        });
+        usedTxnIds[src.txn_id] = true;
+        usedTxnIds[dst.txn_id] = true;
+      }
+
+      // Remaining unpaired legs - show individually
+      group.forEach(function(t) {
+        if (!usedTxnIds[t.txn_id]) {
+          txnLegs.push({
+            try_ref: 'UNPAIR-' + t.txn_id, try_date: t.txn_date,
+            account_id: t.account_id, entity_id: t.entity_id,
+            amount: t.amount, leg: t.direction === 'Credit' ? 'Source' : 'Destination',
+            notes: t.description || '', txn_id: t.txn_id, from_txn: true
+          });
+          usedTxnIds[t.txn_id] = true;
+        }
+      });
     });
 
     const legs = treasuryLegs.concat(txnLegs);
