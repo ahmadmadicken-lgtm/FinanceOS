@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.6 Treasury auto-pair build:20260714110642 -->
+<!-- Finance OS v5.12.8 Treasury explicit pairing + three-tier build:20260714113113 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -5710,6 +5710,13 @@ const Transactions = (() => {
                   '<option value="">— Opsional —</option>' +
                 '</select>' +
               '</div>' +
+              '<div class="form-group" id="f-pair-group" style="display:none">' +
+                '<label>Pasangan Transfer <span class="text-muted text-xs">(opsional — untuk Treasury)</span></label>' +
+                '<select class="form-input" id="f-counter-txn-id">' +
+                  '<option value="">— Pilih pasangan —</option>' +
+                '</select>' +
+                '<small class="form-hint">Pilih transaksi Treasury yang menjadi pasangan dari transfer ini</small>' +
+              '</div>' +
             '</div>' +
           '</div>' +
 
@@ -6125,22 +6132,48 @@ const Transactions = (() => {
     var ccSection = document.getElementById('cc-section');
     if (ccSection) ccSection.style.display = result.internal_type_id === 'TXN-09' ? 'block' : 'none';
 
-    // Treasury domain: unlock direction, show clear prompt
+    // Treasury domain: unlock direction, show clear prompt + pair field
     var dirSel   = document.getElementById('f-direction');
-    var dirLabel = document.querySelector('label[for="f-direction"], .dir-label');
     var dirHint  = document.getElementById('dir-hint');
     var isTreasury = (result.internal_type_id === 'TXN-06' ||
                       (result.cf_class && result.cf_class === 'Treasury'));
     if (isTreasury && dirSel) {
-      // Clear direction so user must choose
       dirSel.value    = '';
       dirSel.disabled = false;
-      // Update options to show Treasury-specific language
       dirSel.innerHTML =
         '<option value="">— Pilih arah transfer —</option>' +
         '<option value="Credit">&#8600; Cash Out — uang KELUAR dari rekening ini</option>' +
         '<option value="Debit">&#8599; Cash In — uang MASUK ke rekening ini</option>';
       if (dirHint) dirHint.textContent = 'Treasury: pilih Cash Out jika ini rekening sumber, Cash In jika ini rekening tujuan';
+
+      // Show Pasangan Transfer field and populate with unpaired treasury txns
+      var pairGroup = document.getElementById('f-pair-group');
+      var pairSel   = document.getElementById('f-counter-txn-id');
+      if (pairGroup && pairSel) {
+        pairGroup.style.display = 'block';
+        // Get unlinked treasury transactions (opposite candidates)
+        var dateEl = document.getElementById('f-txn-date');
+        var txnDate = dateEl ? dateEl.value : '';
+        var unpairedTxns = DB.Transactions.all().filter(function(t) {
+          return (t.cf_class === 'Treasury' || t.type_id === 'TXN-06') &&
+                 t.status === 'Posted' && !t.counter_txn_id &&
+                 (!txnDate || t.txn_date === txnDate);
+        }).sort(function(a,b){ return b.txn_date.localeCompare(a.txn_date); });
+        pairSel.innerHTML = '<option value="">— Tidak perlu dipasangkan —</option>' +
+          unpairedTxns.map(function(t) {
+            var acct = DB.Accounts.byId(t.account_id);
+            return '<option value="' + t.txn_id + '">' +
+              Utils.formatDate(t.txn_date) + ' | ' +
+              (acct ? acct.account_name : t.account_id) + ' | ' +
+              (t.direction === 'Credit' ? 'Cash Out' : 'Cash In') + ' | ' +
+              Utils.formatIDR(t.amount) +
+            '</option>';
+          }).join('');
+      }
+    } else {
+      // Hide pair field for non-treasury events
+      var pairGroup2 = document.getElementById('f-pair-group');
+      if (pairGroup2) pairGroup2.style.display = 'none';
     }
 
     // Override check
@@ -6208,6 +6241,7 @@ const Transactions = (() => {
       txn_date:           document.getElementById('f-txn-date').value,
       amount:             parseFloat(document.getElementById('f-amount').value),
       direction:          document.getElementById('f-direction').value,
+      counter_txn_id:     (document.getElementById('f-counter-txn-id') || {}).value || null,
       cp_id:              document.getElementById('f-cp-id').value,
       reference_id:       document.getElementById('f-ref-id').value,
       description:        document.getElementById('f-description').value,
@@ -6273,6 +6307,17 @@ const Transactions = (() => {
     };
 
     DB.Transactions.save(txn);
+
+    // If paired with another treasury txn, link both ways
+    if (txn.counter_txn_id && status === 'Posted') {
+      var paired = DB.Transactions.byId(txn.counter_txn_id);
+      if (paired && !paired.counter_txn_id) {
+        DB.Transactions.save(Object.assign({}, paired, {
+          counter_txn_id: txn.txn_id
+        }));
+      }
+    }
+
     Utils.toast(status === 'Posted' ? 'Transaksi berhasil diposting' : 'Draft disimpan');
     render();
   }
@@ -6601,6 +6646,7 @@ const Transactions = (() => {
       txn_date:           document.getElementById('f-txn-date').value,
       amount:             parseFloat(document.getElementById('f-amount').value),
       direction:          document.getElementById('f-direction').value,
+      counter_txn_id:     (document.getElementById('f-counter-txn-id') || {}).value || null,
       cp_id:              document.getElementById('f-cp-id').value,
       reference_id:       document.getElementById('f-ref-id').value,
       description:        document.getElementById('f-description').value
@@ -8385,9 +8431,18 @@ const Treasury = (() => {
           '</div>' +
           (isInterco ? '<span class="badge badge-purple" style="margin-top:.25rem;font-size:.65rem">Intercompany</span>' : '') +
         '</td>' +
-        '<td class="text-right mono">' + Utils.formatIDR(m.amount) + '</td>' +
+        '<td class="text-right mono">' +
+          Utils.formatIDR(m.amount) +
+          (m.settlement_diff ? '<div class="text-xs text-yellow" style="margin-top:.1rem">selisih ' + Utils.formatIDR(Math.abs(m.settlement_diff)) + ' → Koin/Admin</div>' : '') +
+        '</td>' +
         '<td class="text-sm text-muted">' + (m.notes || '—') + '</td>' +
-        '<td>' + (m.paired ? '<span class="badge badge-green">✓ Paired</span>' : '<span class="badge badge-red">! Unpaired</span>') + '</td>' +
+        '<td>' +
+          (!m.paired
+            ? '<span class="badge badge-red">&#9888; Unpaired</span>'
+            : m.is_fuzzy
+              ? '<span class="badge badge-yellow">&#8776; Settlement</span>'
+              : '<span class="badge badge-green">&#10003; Paired</span>') +
+        '</td>' +
         '<td class="text-center">' +
           '<button class="btn-action" onclick="Treasury.viewDetail(\'' + m.try_ref + '\')" title="Detail">👁</button>' +
         '</td>' +
@@ -8415,66 +8470,110 @@ const Treasury = (() => {
     var treasuryLegs = DB.Treasury.all();
 
     // Secondary source: fos_transactions with cf_class='Treasury' or type_id='TXN-06'
-    // These are transfers entered via Transaction Form (EVT-T01)
     var treasuryTxns = DB.Transactions.all().filter(function(t) {
       return (t.cf_class === 'Treasury' || t.type_id === 'TXN-06') &&
              t.status === 'Posted' &&
              !treasuryLegs.some(function(l){ return l.txn_id === t.txn_id; });
     });
 
-    // Auto-pair: group transactions with same date + same amount as a pair
-    // Credit leg = Source (money leaving), Debit leg = Destination (money arriving)
-    // Use "DATE|AMOUNT" as the shared try_ref key for pairing
-    var pairMap = {};
-    treasuryTxns.forEach(function(t) {
-      var pairKey = t.txn_date + '|' + t.amount;
-      if (!pairMap[pairKey]) pairMap[pairKey] = [];
-      pairMap[pairKey].push(t);
-    });
-
-    var txnLegs = [];
+    var txnLegs   = [];
     var usedTxnIds = {};
 
-    Object.keys(pairMap).forEach(function(pairKey) {
-      var group = pairMap[pairKey];
-      // Find Credit (Source) and Debit (Destination) legs
-      var sources = group.filter(function(t){ return t.direction === 'Credit'; });
-      var dests   = group.filter(function(t){ return t.direction === 'Debit'; });
+    // ── Option C: Three-tier pairing ───────────────────────
+    // Tier 1: Exact date + exact amount match
+    // Tier 2: Same date + fuzzy amount (within Rp 1000, handles Flip admin fee)
+    // Tier 3: Unpaired — show individually
 
-      // Pair them up
-      var pairs = Math.min(sources.length, dests.length);
-      for (var i = 0; i < pairs; i++) {
-        var src = sources[i];
-        var dst = dests[i];
-        var sharedRef = 'PAIR-' + src.txn_id + '-' + dst.txn_id;
-        txnLegs.push({
-          try_ref: sharedRef, try_date: src.txn_date,
-          account_id: src.account_id, entity_id: src.entity_id,
-          amount: src.amount, leg: 'Source',
-          notes: src.description || '', txn_id: src.txn_id, from_txn: true
-        });
-        txnLegs.push({
-          try_ref: sharedRef, try_date: dst.txn_date,
-          account_id: dst.account_id, entity_id: dst.entity_id,
-          amount: dst.amount, leg: 'Destination',
-          notes: dst.description || '', txn_id: dst.txn_id, from_txn: true
-        });
-        usedTxnIds[src.txn_id] = true;
-        usedTxnIds[dst.txn_id] = true;
-      }
+    var credits = treasuryTxns.filter(function(t){ return t.direction === 'Credit'; });
+    var debits  = treasuryTxns.filter(function(t){ return t.direction === 'Debit'; });
 
-      // Remaining unpaired legs - show individually
-      group.forEach(function(t) {
-        if (!usedTxnIds[t.txn_id]) {
-          txnLegs.push({
-            try_ref: 'UNPAIR-' + t.txn_id, try_date: t.txn_date,
-            account_id: t.account_id, entity_id: t.entity_id,
-            amount: t.amount, leg: t.direction === 'Credit' ? 'Source' : 'Destination',
-            notes: t.description || '', txn_id: t.txn_id, from_txn: true
-          });
-          usedTxnIds[t.txn_id] = true;
-        }
+    function _accountAllowsPair(srcAcctId, dstAcctId) {
+      // Account flow validation: avoid pairing unrelated accounts
+      // If both accounts are in the same entity or one is a hub (Flip, Sea Bank)
+      // we allow the pair. Only block if accounts are clearly unrelated.
+      if (!srcAcctId || !dstAcctId) return true;
+      if (srcAcctId === dstAcctId) return false; // same account = not a transfer
+      return true; // permissive — let amount matching be the primary gate
+    }
+
+    function _tryPair(src, dst, isFuzzy) {
+      if (usedTxnIds[src.txn_id] || usedTxnIds[dst.txn_id]) return false;
+      if (src.txn_date !== dst.txn_date) return false;
+      if (!_accountAllowsPair(src.account_id, dst.account_id)) return false;
+      var diff = Math.abs(src.amount - dst.amount);
+      if (isFuzzy && diff > 1000) return false;
+      if (!isFuzzy && diff !== 0) return false;
+      return true;
+    }
+
+    function _makePair(src, dst) {
+      var diff    = src.amount - dst.amount;
+      var sharedRef = 'PAIR-' + src.txn_id + '-' + dst.txn_id;
+      var isFuzzy   = diff !== 0;
+      txnLegs.push({
+        try_ref: sharedRef, try_date: src.txn_date,
+        account_id: src.account_id, entity_id: src.entity_id,
+        amount: src.amount, leg: 'Source',
+        notes: src.description || '', txn_id: src.txn_id,
+        from_txn: true, is_fuzzy: isFuzzy, settlement_diff: diff
       });
+      txnLegs.push({
+        try_ref: sharedRef, try_date: dst.txn_date,
+        account_id: dst.account_id, entity_id: dst.entity_id,
+        amount: dst.amount, leg: 'Destination',
+        notes: dst.description || '', txn_id: dst.txn_id,
+        from_txn: true, is_fuzzy: isFuzzy, settlement_diff: diff
+      });
+      usedTxnIds[src.txn_id] = true;
+      usedTxnIds[dst.txn_id] = true;
+    }
+
+    // Tier 0: Explicit pairing via counter_txn_id (100% accurate)
+    credits.forEach(function(src) {
+      if (usedTxnIds[src.txn_id] || !src.counter_txn_id) return;
+      var dst = debits.find(function(d){ return d.txn_id === src.counter_txn_id; });
+      if (dst && !usedTxnIds[dst.txn_id]) _makePair(src, dst);
+    });
+    // Also check debits with counter_txn_id pointing to credits
+    debits.forEach(function(dst) {
+      if (usedTxnIds[dst.txn_id] || !dst.counter_txn_id) return;
+      var src = credits.find(function(c){ return c.txn_id === dst.counter_txn_id; });
+      if (src && !usedTxnIds[src.txn_id]) _makePair(src, dst);
+    });
+
+    // Tier 1: Exact amount match
+    credits.forEach(function(src) {
+      if (usedTxnIds[src.txn_id]) return;
+      for (var i = 0; i < debits.length; i++) {
+        var dst = debits[i];
+        if (_tryPair(src, dst, false)) { _makePair(src, dst); break; }
+      }
+    });
+
+    // Tier 2: Fuzzy amount match (±1000, same date)
+    credits.forEach(function(src) {
+      if (usedTxnIds[src.txn_id]) return;
+      // Sort by closest amount match
+      var candidates = debits.filter(function(d){
+        return !usedTxnIds[d.txn_id] && _tryPair(src, d, true);
+      }).sort(function(a, b){
+        return Math.abs(a.amount - src.amount) - Math.abs(b.amount - src.amount);
+      });
+      if (candidates.length > 0) _makePair(src, candidates[0]);
+    });
+
+    // Tier 3: Remaining unpaired
+    treasuryTxns.forEach(function(t) {
+      if (!usedTxnIds[t.txn_id]) {
+        txnLegs.push({
+          try_ref: 'UNPAIR-' + t.txn_id, try_date: t.txn_date,
+          account_id: t.account_id, entity_id: t.entity_id,
+          amount: t.amount, leg: t.direction === 'Credit' ? 'Source' : 'Destination',
+          notes: t.description || '', txn_id: t.txn_id,
+          from_txn: true, unpaired: true
+        });
+        usedTxnIds[t.txn_id] = true;
+      }
     });
 
     const legs = treasuryLegs.concat(txnLegs);
@@ -8503,11 +8602,15 @@ const Treasury = (() => {
     return Object.values(groups).map(function(g){
       const src = g.legs.find(function(l){ return l.leg === 'Source'; });
       const dst = g.legs.find(function(l){ return l.leg === 'Destination'; });
+      var legIsFuzzy = (src && src.is_fuzzy) || (dst && dst.is_fuzzy);
+      var legDiff    = (src && src.settlement_diff) ? src.settlement_diff : 0;
       return {
         try_ref:        g.try_ref,
         date:           src ? src.try_date : (dst ? dst.try_date : ''),
         source_account: src ? src.account_id : null,
         dest_account:   dst ? dst.account_id : null,
+        is_fuzzy:       legIsFuzzy,
+        settlement_diff:legDiff,
         amount:         src ? src.amount : (dst ? dst.amount : 0),
         notes:          src ? src.notes : '',
         paired:         !!(src && dst)
