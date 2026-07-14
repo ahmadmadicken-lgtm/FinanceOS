@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.4 COA-aware direction labels build:20260712234037 -->
+<!-- Finance OS v5.12.5 Treasury reads fos_transactions build:20260714104043 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -8411,7 +8411,31 @@ const Treasury = (() => {
 
   // Group treasury legs into paired movements
   function _getGrouped() {
-    const legs = DB.Treasury.all();
+    // Primary source: fos_treasury (entries via Treasury Module)
+    var treasuryLegs = DB.Treasury.all();
+
+    // Secondary source: fos_transactions with cf_class='Treasury' or type_id='TXN-06'
+    // These are transfers entered via Transaction Form (EVT-T01)
+    // Convert them to the same leg format as fos_treasury
+    var txnLegs = DB.Transactions.all().filter(function(t) {
+      return (t.cf_class === 'Treasury' || t.type_id === 'TXN-06') &&
+             t.status === 'Posted' &&
+             !treasuryLegs.some(function(l){ return l.txn_id === t.txn_id; });
+    }).map(function(t) {
+      return {
+        try_ref:    t.reference_id || ('TXN-' + t.txn_id),
+        try_date:   t.txn_date,
+        account_id: t.account_id,
+        entity_id:  t.entity_id,
+        amount:     t.amount,
+        leg:        t.direction === 'Credit' ? 'Source' : 'Destination',
+        notes:      t.description || '',
+        txn_id:     t.txn_id,
+        from_txn:   true
+      };
+    });
+
+    const legs = treasuryLegs.concat(txnLegs);
 
     // Apply filters
     let filtered = legs;
