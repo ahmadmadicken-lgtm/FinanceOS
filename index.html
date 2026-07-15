@@ -1,10 +1,7 @@
-<!-- Finance OS v5.13.0 Debt bulk mark paid + admin fee build:20260715222537 -->
+<!-- Finance OS v5.13.1 Edit+Delete facility build:20260715232941 -->
 <!DOCTYPE html><html lang="id">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Finance OS</title>
-  <meta name="theme-color" content="#0d1117"/>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Finance OS"/>
@@ -2308,17 +2305,10 @@ hr { border: none; border-top: 1px solid var(--border); }
 </head>
 <body>
   <div id="app">
-    <nav id="sidebar">
-      <div id="app-logo"><span class="logo-icon">&#9672;</span><span class="logo-text">Finance OS</span></div>
-      <ul id="nav-links"></ul>
-    </nav>
-    <main id="content">
-      <header id="page-header"></header>
-      <section id="page-body"></section>
-    </main>
+    <nav id="sidebar"><div id="app-logo"><span class="logo-icon">&#9672;</span><span class="logo-text">Finance OS</span></div><ul id="nav-links"></ul></nav>
+    <main id="content"><header id="page-header"></header><section id="page-body"></section></main>
   </div>
-  <script>
-// ============================================================
+  <script>// ============================================================
 // FINANCE OS — OPERATIONAL CLASSIFICATION SEED (Sprint 5)
 // Optional management metadata — nullable, not mandatory
 // Covers common SME operational cost/revenue categories
@@ -5017,6 +5007,17 @@ const SupabaseSync = (() => {
     _pendingPush = false;
   }
 
+
+  // Delete a specific record from Supabase by ID
+  async function deleteRecord(tableName, idKey, idValue) {
+    if (!_online) return;
+    try {
+      await _api('DELETE', tableName + '?' + idKey + '=eq.' + encodeURIComponent(idValue), null);
+    } catch(e) {
+      console.warn('[SupabaseSync] deleteRecord failed:', e);
+    }
+  }
+
   return {
     init,
     queueSync,
@@ -5028,7 +5029,7 @@ const SupabaseSync = (() => {
     manualSync,
     manualPull,
     checkSyncHealth
-  , pushNow
+  , pushNow, deleteRecord
   };
 
 })();
@@ -9957,6 +9958,12 @@ const DebtModule = (() => {
     Utils.confirm('Hapus fasilitas ini? Jadwal angsuran juga akan dihapus. Tindakan tidak dapat dibatalkan.', function() {
       var result = DB.DebtRegister.delete(debt_id);
       if (result && result.error) { Utils.toast(result.error, 'error'); return; }
+      // Delete from Supabase immediately so pull doesn't restore it
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
+        SupabaseSync.deleteRecord('fos_debt_register', 'debt_id', debt_id);
+        SupabaseSync.deleteRecord('fos_debt_schedule', 'debt_id', debt_id);
+        SupabaseSync.deleteRecord('fos_debt_obligations', 'obligation_id', debt_id);
+      }
       Utils.toast('Fasilitas berhasil dihapus');
       _renderRegister();
     });
@@ -10539,6 +10546,7 @@ const DebtModule = (() => {
             (debt.status !== 'Settled'
               ? '<button class="btn btn-primary" id="btn-catat-bayar">+ Catat Pembayaran</button>'
               : '') +
+            '<button class="btn btn-secondary btn-sm" id="btn-edit-debt">&#9998; Edit</button>' +
             '<button class="btn btn-ghost btn-sm" id="btn-hapus-debt">&#128465; Hapus</button>' +
           '</div>' +
         '</div>' +
@@ -10693,6 +10701,8 @@ const DebtModule = (() => {
     var btnBayar = document.getElementById('btn-catat-bayar');
     if (btnBayar) btnBayar.onclick = function() { showPayment(_selectedDebtId); };
     var btnHapus = document.getElementById('btn-hapus-debt');
+    var btnEdit  = document.getElementById('btn-edit-debt');
+    if (btnEdit)  btnEdit.onclick  = function() { showEditFacility(_selectedDebtId); };
     if (btnHapus) btnHapus.onclick = function() { _deleteDebt(_selectedDebtId); };
     // Bind tabs
     body.querySelectorAll('.debt-tab[data-tab]').forEach(function(btn) {
@@ -11414,6 +11424,135 @@ const DebtModule = (() => {
   }
 
 
+  // ── Edit Facility ─────────────────────────────────────────
+  function showEditFacility(debtId) {
+    var debt = DB.DebtRegister.byId(debtId);
+    if (!debt) return;
+    var body = document.getElementById('page-body');
+
+    // Show edit form inline
+    var editHtml =
+      '<div class="card" style="margin-top:1rem;padding:1.25rem">' +
+        '<div class="form-section-title" style="margin-bottom:1rem">&#9998; Edit Fasilitas — ' + debt.description + '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Nama Fasilitas</label>' +
+            '<input class="form-input" id="ef-desc" value="' + (debt.description||'') + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Status</label>' +
+            '<select class="form-input" id="ef-status">' +
+              '<option value="Active"'  + (debt.status==='Active'?' selected':'')  + '>Active</option>' +
+              '<option value="Settled"' + (debt.status==='Settled'?' selected':'') + '>Settled</option>' +
+              '<option value="Overdue"' + (debt.status==='Overdue'?' selected':'') + '>Overdue</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Pokok Awal (Rp)</label>' +
+            '<input class="form-input" type="number" id="ef-original" value="' + (debt.original_amount||0) + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Outstanding Saat Ini (Rp)</label>' +
+            '<input class="form-input" type="number" id="ef-outstanding" value="' + (debt.outstanding_principal||0) + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Cicilan per Bulan (Rp)</label>' +
+            '<input class="form-input" type="number" id="ef-monthly" value="' + (debt.monthly_installment||0) + '">' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Tenor (bulan)</label>' +
+            '<input class="form-input" type="number" id="ef-tenor" value="' + (debt.tenor_months||0) + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Sisa Cicilan</label>' +
+            '<input class="form-input" type="number" id="ef-remaining" value="' + (debt.remaining_installments||0) + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Jatuh Tempo Berikutnya</label>' +
+            '<input class="form-input" type="date" id="ef-next-due" value="' + (debt.next_due_date||'') + '">' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label>Tanggal Mulai</label>' +
+            '<input class="form-input" type="date" id="ef-start" value="' + (debt.start_date||'') + '">' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Suku Bunga (%/tahun)</label>' +
+            '<input class="form-input" type="number" id="ef-rate" value="' + (debt.interest_rate||0) + '" step="0.01">' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-actions" style="margin-top:1rem">' +
+          '<button class="btn btn-ghost" id="ef-cancel-btn">Batal</button>' +
+          '<button class="btn btn-primary" id="ef-save-btn">&#10003; Simpan Perubahan</button>' +
+        '</div>' +
+      '</div>';
+
+    // Append edit form below existing content
+    var existing = body.querySelector('.debt-page');
+    if (existing) {
+      // Remove old edit form if exists
+      var old = body.querySelector('.ef-form');
+      if (old) old.remove();
+      var div = document.createElement('div');
+      div.className = 'ef-form';
+      div.innerHTML = editHtml;
+      existing.appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth' });
+      var cancelBtn = document.getElementById('ef-cancel-btn');
+      var saveBtn   = document.getElementById('ef-save-btn');
+      if (cancelBtn) cancelBtn.onclick = function(){ DebtModule.showDetail(debtId); };
+      if (saveBtn)   saveBtn.onclick   = function(){ DebtModule._saveEditFacility(debtId); };
+    }
+  }
+
+  function _saveEditFacility(debtId) {
+    var debt = DB.DebtRegister.byId(debtId);
+    if (!debt) return;
+
+    var desc        = (document.getElementById('ef-desc')        || {}).value || debt.description;
+    var status      = (document.getElementById('ef-status')      || {}).value || debt.status;
+    var original    = parseFloat((document.getElementById('ef-original')    || {}).value) || debt.original_amount;
+    var outstanding = parseFloat((document.getElementById('ef-outstanding') || {}).value) || debt.outstanding_principal;
+    var monthly     = parseFloat((document.getElementById('ef-monthly')     || {}).value) || debt.monthly_installment;
+    var tenor       = parseInt((document.getElementById('ef-tenor')         || {}).value) || debt.tenor_months;
+    var remaining   = parseInt((document.getElementById('ef-remaining')     || {}).value) || debt.remaining_installments;
+    var nextDue     = (document.getElementById('ef-next-due') || {}).value || debt.next_due_date;
+    var start       = (document.getElementById('ef-start')    || {}).value || debt.start_date;
+    var rate        = parseFloat((document.getElementById('ef-rate') || {}).value) || 0;
+
+    var updated = Object.assign({}, debt, {
+      description:            desc,
+      status:                 status,
+      original_amount:        original,
+      outstanding_principal:  outstanding,
+      monthly_installment:    monthly,
+      tenor_months:           tenor,
+      remaining_installments: remaining,
+      next_due_date:          nextDue,
+      start_date:             start,
+      interest_rate:          rate
+    });
+
+    DB.DebtRegister.save(updated);
+
+    // Regenerate schedule if remaining or next_due changed
+    var oldScheds = DB.DebtSchedule.byDebt(debtId).filter(function(s){ return s.status !== 'Paid'; });
+    if (oldScheds.length !== remaining || debt.next_due_date !== nextDue) {
+      // Remove unpaid schedules and regenerate
+      var paidScheds = DB.DebtSchedule.byDebt(debtId).filter(function(s){ return s.status === 'Paid'; });
+      var newScheds  = DB.DebtSchedule.generate(updated);
+      DB.DebtSchedule.saveMany(paidScheds.concat(newScheds));
+    }
+
+    Utils.toast('Fasilitas berhasil diupdate');
+    showDetail(debtId);
+  }
+
   // ── Bulk Mark Paid ─────────────────────────────────────
   function showBulkMarkPaid(debtId) {
     var area = document.getElementById('bulk-mark-area');
@@ -11517,7 +11656,8 @@ const DebtModule = (() => {
     showObligations, showNewObligation, editObligation,
     _renderObligationForm, _onObTypeChange, _saveObligation,
     showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
-    showBulkMarkPaid, _bulkCheckAll, _executeBulkMark
+    showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
+    showEditFacility, _saveEditFacility
   };
 
 })();
@@ -16672,9 +16812,6 @@ window.addEventListener("DOMContentLoaded", function() {
     }, 500);
   }
 });
-
-  </script>
-  <script>
-    if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});});}
-  </script>
+</script>
+  <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});});}</script>
 </body></html>
