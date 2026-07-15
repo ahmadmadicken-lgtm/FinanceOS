@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.8 Treasury explicit pairing + three-tier build:20260714113113 -->
+<!-- Finance OS v5.12.9 Add Cash account type build:20260715005348 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -14110,7 +14110,7 @@ const Masters = (() => {
     _showModal('Tambah Akun', [
       { id:'ac-entity',  label:'Entity',      type:'select', options:entities.map(function(e){ return {val:e.entity_id,label:e.entity_name}; }) },
       { id:'ac-name',    label:'Nama Akun',   type:'text',   placeholder:'Contoh: BNI Operasional' },
-      { id:'ac-type',    label:'Tipe',        type:'select', options:['Bank','E-Wallet','Credit','Loan','Platform'] },
+      { id:'ac-type',    label:'Tipe',        type:'select', options:['Bank','Cash','E-Wallet','Credit','Loan','Platform'] },
       { id:'ac-coa',     label:'COA Code',    type:'select', options:coas.map(function(c){ return {val:c.coa_code,label:c.coa_code+' — '+c.coa_name}; }) },
       { id:'ac-opening', label:'Saldo Awal',  type:'number', placeholder:'0', hint:'Saldo per tanggal go-live' }
     ], function(vals) {
@@ -14127,7 +14127,7 @@ const Masters = (() => {
     const a = DB.Accounts.byId(id); if (!a) return;
     _showModal('Edit Akun — '+id, [
       { id:'ac-name',    label:'Nama Akun',  type:'text',   value:a.account_name },
-      { id:'ac-type',    label:'Tipe',       type:'select', options:['Bank','E-Wallet','Credit','Loan','Platform'], value:a.account_type },
+      { id:'ac-type',    label:'Tipe',       type:'select', options:['Bank','Cash','E-Wallet','Credit','Loan','Platform'], value:a.account_type },
       { id:'ac-opening', label:'Saldo Awal', type:'number', value:a.opening_balance||0 }
     ], function(vals) {
       DB.Accounts.save({ ...a, account_name:vals['ac-name'], account_type:vals['ac-type'], opening_balance:parseFloat(vals['ac-opening'])||0 });
