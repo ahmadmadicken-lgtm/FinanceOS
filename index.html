@@ -1,4 +1,4 @@
-<!-- Finance OS v5.12.9 Add Cash account type build:20260715005348 -->
+<!-- Finance OS v5.13.0 Debt bulk mark paid + admin fee build:20260715222537 -->
 <!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -10134,7 +10134,7 @@ const DebtModule = (() => {
             '<div class="form-group">' +
               '<label>Admin Fee (jika ada)</label>' +
               '<input class="form-input" type="number" id="df-admin-fee" placeholder="0">' +
-              '<small class="form-hint">Dicatat sebagai beban di hari H, tidak masuk pokok</small>' +
+              '<small class="form-hint">Service fee / biaya provisi — otomatis dicatat sebagai Beban Keuangan (COA 541) di tanggal mulai</small>' +
             '</div>' +
             '<div class="form-group">' +
               '<label>Cicilan per Bulan</label>' +
@@ -10467,8 +10467,10 @@ const DebtModule = (() => {
         activity_id:        debt.activity_id || null,
         account_id:         debt.account_id,
         counter_account_id: null,
-        coa_code:           '542',
+        coa_code:           '541',
         type_id:            'TXN-02',
+        event_id:           'EVT-E03',
+        cf_class:           'Operating',
         cp_id:              debt.cp_id || null,
         amount:             debt.admin_fee,
         direction:          'Debit',
@@ -10613,9 +10615,16 @@ const DebtModule = (() => {
                 '<td class="text-right mono text-sm">' + Utils.formatIDR(schedules.reduce(function(s,x){return s+(x.total_installment||0);},0)) + '</td>' +
                 '<td colspan="3"></td>' +
               '</tr></tfoot>' +
-            '</table></div>'
+            '</table></div>' +
+            // Bulk Mark Paid button
+            '<div class="form-actions" style="margin-top:.75rem">' +
+              '<button class="btn btn-secondary" onclick="DebtModule.showBulkMarkPaid(' + JSON.stringify(debt.debt_id) + ')">' +
+                '&#10003; Bulk Mark Cicilan Sebagai Lunas' +
+              '</button>' +
+            '</div>'
         ) +
       '</div>' +
+      '<div id="bulk-mark-area"></div>' +
 
       // ── Tab: History Pembayaran ───────────────────────────
       '<div id="tab-content-payments" class="debt-tab-content" style="display:none">' +
@@ -11404,6 +11413,98 @@ const DebtModule = (() => {
     showObligations(debtId);
   }
 
+
+  // ── Bulk Mark Paid ─────────────────────────────────────
+  function showBulkMarkPaid(debtId) {
+    var area = document.getElementById('bulk-mark-area');
+    if (!area) return;
+    var schedules = DB.DebtSchedule.byDebt(debtId).filter(function(s){ return s.status !== 'Paid'; });
+    var relatedTxns = DB.Transactions.all().filter(function(t){
+      return (t.event_id === 'EVT-D04' || t.event_id === 'EVT-D02' || t.type_id === 'TXN-08') &&
+             t.status === 'Posted';
+    }).sort(function(a,b){ return a.txn_date.localeCompare(b.txn_date); });
+    if (schedules.length === 0) {
+      area.innerHTML = '<div class="info-box" style="margin-top:.75rem">&#10003; Semua cicilan sudah lunas.</div>';
+      return;
+    }
+    var rows = schedules.map(function(s) {
+      var opts = relatedTxns.map(function(t){
+        var acct = DB.Accounts.byId(t.account_id);
+        return '<option value="' + t.txn_id + '">' +
+          Utils.formatDate(t.txn_date) + ' | ' +
+          (acct ? acct.account_name : '') + ' | ' +
+          Utils.formatIDR(t.amount) + '</option>';
+      }).join('');
+      return '<tr>' +
+        '<td><input type="checkbox" class="bulk-sched-check" data-id="' + s.schedule_id + '"></td>' +
+        '<td class="text-muted">' + s.installment_no + '</td>' +
+        '<td>' + Utils.formatDate(s.due_date) + '</td>' +
+        '<td class="text-right mono">' + Utils.formatIDR(s.total_installment) + '</td>' +
+        '<td><select class="filter-select" id="pair-txn-' + s.schedule_id + '" style="font-size:.75rem;min-width:180px">' +
+          '<option value="">— Tidak dipasangkan —</option>' + opts +
+        '</select></td></tr>';
+    }).join('');
+    area.innerHTML =
+      '<div class="card" style="margin-top:1rem">' +
+        '<div class="card-header"><div class="card-title">&#10003; Bulk Mark Cicilan Lunas</div></div>' +
+        '<div style="padding:1rem">' +
+          '<table class="table" style="font-size:.78rem"><thead><tr>' +
+            '<th><input type="checkbox" id="bulk-check-all" onchange="DebtModule._bulkCheckAll()"></th>' +
+            '<th>#</th><th>Jatuh Tempo</th><th class="text-right">Total</th><th>Pasangkan Transaksi</th>' +
+          '</tr></thead><tbody>' + rows + '</tbody></table>' +
+          '<div class="form-group" style="margin-top:.75rem">' +
+            '<label class="text-sm">Tanggal Bayar</label>' +
+            '<input class="form-input" type="date" id="bulk-pay-date" value="' + Utils.today() + '" style="max-width:200px">' +
+          '</div>' +
+          '<div class="form-actions" style="margin-top:.75rem">' +
+            '<button class="btn btn-ghost" id="bulk-cancel-btn2">Batal</button>' +
+            '<button class="btn btn-primary" id="bulk-exec-btn2">&#10003; Mark Sebagai Lunas</button>' +
+          '</div>' +
+        '</div></div>';
+  }
+
+  function _bulkCheckAll() {
+    var all = document.getElementById('bulk-check-all');
+    document.querySelectorAll('.bulk-sched-check').forEach(function(cb){ cb.checked = all.checked; });
+  }
+
+  function _executeBulkMark(debtId) {
+    var checks  = document.querySelectorAll('.bulk-sched-check:checked');
+    var payDate = (document.getElementById('bulk-pay-date') || {}).value || Utils.today();
+    if (checks.length === 0) { Utils.toast('Pilih minimal satu cicilan', 'error'); return; }
+    var count = 0;
+    checks.forEach(function(cb) {
+      var schedId = cb.getAttribute('data-id');
+      var sched   = DB.DebtSchedule.byId(schedId);
+      if (!sched) return;
+      var pairSel     = document.getElementById('pair-txn-' + schedId);
+      var pairedTxnId = pairSel ? pairSel.value : '';
+      DB.DebtSchedule.save(Object.assign({}, sched, {
+        status: 'Paid', payment_date: payDate,
+        paid_amount: sched.total_installment,
+        txn_id: pairedTxnId || sched.txn_id || null
+      }));
+      if (pairedTxnId) {
+        var pt = DB.Transactions.byId(pairedTxnId);
+        if (pt) DB.Transactions.save(Object.assign({}, pt, {
+          reference_id: debtId, event_id: pt.event_id || 'EVT-D04'
+        }));
+      }
+      count++;
+    });
+    var facility = DB.DebtRegister.byId(debtId);
+    if (facility) {
+      var remaining = DB.DebtSchedule.byDebt(debtId).filter(function(s){ return s.status !== 'Paid'; });
+      DB.DebtRegister.save(Object.assign({}, facility, {
+        remaining_installments: remaining.length,
+        outstanding_principal: remaining.reduce(function(s,x){ return s+(x.total_installment||0);},0)
+      }));
+    }
+    Utils.toast(count + ' cicilan berhasil di-mark lunas');
+    document.getElementById('bulk-mark-area').innerHTML = '';
+    showDetail(debtId);
+  }
+
   return {
     render, showRegister, showDetail, showNew, showPayment,
     applyFilter, clearFilters, exportRegister,
@@ -11414,7 +11515,9 @@ const DebtModule = (() => {
     onPmtChange, onSchedChange, onTotalChange, onAllocChange,
     savePayment,
     showObligations, showNewObligation, editObligation,
-    _renderObligationForm, _onObTypeChange, _saveObligation
+    _renderObligationForm, _onObTypeChange, _saveObligation,
+    showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
+    showBulkMarkPaid, _bulkCheckAll, _executeBulkMark
   };
 
 })();
