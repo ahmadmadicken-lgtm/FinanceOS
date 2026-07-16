@@ -1,4 +1,4 @@
-<!-- Finance OS v5.13.3 Soft delete fix build:20260716001643 -->
+<!-- Finance OS v5.13.4 Outstanding validation + auto rate fix build:20260716003247 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -10401,7 +10401,13 @@ const DebtModule = (() => {
     var limit     = parseFloat((document.getElementById('df-limit')      || {}).value) || 0;
     var original  = parseFloat((document.getElementById('df-original')   || {}).value) || 0;
     var disbursed   = parseFloat((document.getElementById('df-disbursed')  || {}).value) || 0;
-    var outstanding = original; // Auto-set from principal
+    var outstanding = original; // Auto-set from principal for new facility
+
+    // Auto-calc rate for Bundled if not already set
+    if (billing === 'Bundled_Unknown' && (!rate || rate === 0) && original > 0 && monthly > 0 && tenor > 0) {
+      var totalBayar2 = monthly * tenor;
+      rate = parseFloat(((totalBayar2 - original) / original / (tenor / 12) * 100).toFixed(2));
+    }
     var rate      = parseFloat((document.getElementById('df-rate')        || {}).value) || 0;
     var intType   = (document.getElementById('df-interest-type') || {}).value || 'None';
     var billing   = (document.getElementById('df-billing')       || {}).value || 'Bundled_Unknown';
@@ -10422,7 +10428,7 @@ const DebtModule = (() => {
     if (!account)   errors.push('Financial Account wajib dipilih');
     if (!desc)      errors.push('Deskripsi wajib diisi');
     if (!original || original <= 0) errors.push('Jumlah Awal wajib diisi');
-    if (!outstanding || outstanding <= 0) errors.push('Outstanding Saat Ini wajib diisi');
+    // outstanding is auto-set from original — no validation needed
     if (!remaining || remaining <= 0) errors.push('Sisa Angsuran wajib diisi');
     if (!nextDue)   errors.push('Jatuh Tempo Berikutnya wajib diisi');
 
