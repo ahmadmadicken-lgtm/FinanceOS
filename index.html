@@ -1,14 +1,14 @@
-<!-- Finance OS v5.13.1 Edit+Delete facility build:20260715232941 -->
+<!-- Finance OS v5.13.2 Dana Diterima + auto rate build:20260716000714 -->
 <!DOCTYPE html><html lang="id">
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="Finance OS"/>
-  <link rel="manifest" href="/FinanceOS/manifest.json"/>
-  <link rel="apple-touch-icon" href="/FinanceOS/icons/apple-touch-icon.png"/>
-  <script>window.netlifyIdentity={on:function(){},off:function(){},open:function(){},close:function(){},init:function(){},currentUser:function(){return null;},isConfigured:function(){return false;},logout:function(){},refresh:function(){}}</script>
-  <style>/* ============================================================
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
+<title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Finance OS"/>
+<link rel="manifest" href="/FinanceOS/manifest.json"/>
+<link rel="apple-touch-icon" href="/FinanceOS/icons/apple-touch-icon.png"/>
+<script>window.netlifyIdentity={on:function(){},off:function(){},open:function(){},close:function(){},init:function(){},currentUser:function(){return null;},isConfigured:function(){return false;},logout:function(){},refresh:function(){}}</script>
+<style>/* ============================================================
    FINANCE OS — DESIGN SYSTEM
    Palette: Deep slate base, warm off-white surfaces,
    precise accent system per data type.
@@ -2301,14 +2301,12 @@ hr { border: none; border-top: 1px solid var(--border); }
   text-overflow: ellipsis;
   max-width: 140px;
 }
-</style>
-</head>
-<body>
-  <div id="app">
-    <nav id="sidebar"><div id="app-logo"><span class="logo-icon">&#9672;</span><span class="logo-text">Finance OS</span></div><ul id="nav-links"></ul></nav>
-    <main id="content"><header id="page-header"></header><section id="page-body"></section></main>
-  </div>
-  <script>// ============================================================
+</style></head>
+<body><div id="app">
+<nav id="sidebar"><div id="app-logo"><span class="logo-icon">&#9672;</span><span class="logo-text">Finance OS</span></div><ul id="nav-links"></ul></nav>
+<main id="content"><header id="page-header"></header><section id="page-body"></section></main>
+</div>
+<script>// ============================================================
 // FINANCE OS — OPERATIONAL CLASSIFICATION SEED (Sprint 5)
 // Optional management metadata — nullable, not mandatory
 // Covers common SME operational cost/revenue categories
@@ -10110,15 +10108,16 @@ const DebtModule = (() => {
               '<input class="form-input" type="number" id="df-original" placeholder="0" oninput="DebtModule.onAmountChange()">' +
             '</div>' +
             '<div class="form-group">' +
-              '<label>Outstanding Saat Ini <span class="required">*</span></label>' +
-              '<input class="form-input" type="number" id="df-outstanding" placeholder="0">' +
-              '<small class="form-hint">Sisa pokok yang belum dibayar</small>' +
+              '<label>Dana Diterima (Rp) <span class="text-muted text-xs">(opsional)</span></label>' +
+              '<input class="form-input" type="number" id="df-disbursed" placeholder="0" oninput="DebtModule.onAmountChange()">' +
+              '<small class="form-hint">Jumlah yang masuk ke rekening setelah dipotong service fee</small>' +
             '</div>' +
           '</div>' +
           '<div class="form-row">' +
             '<div class="form-group">' +
               '<label>Suku Bunga (% per tahun)</label>' +
-              '<input class="form-input" type="number" id="df-rate" placeholder="0" step="0.01" oninput="DebtModule.onRateChange()">' +
+              '<input class="form-input" type="number" id="df-rate" placeholder="Auto-hitung" step="0.01" oninput="DebtModule.onRateChange()">' +
+              '<small class="form-hint" id="df-rate-hint">Isi manual atau auto-hitung dari pokok+cicilan+tenor</small>' +
             '</div>' +
             '<div class="form-group">' +
               '<label>Tipe Bunga</label>' +
@@ -10250,18 +10249,36 @@ const DebtModule = (() => {
   }
 
   function onAmountChange() {
-    var orig = parseFloat((document.getElementById('df-original') || {}).value) || 0;
-    var outEl = document.getElementById('df-outstanding');
-    if (outEl && !outEl.value) outEl.value = orig;
+    var orig     = parseFloat((document.getElementById('df-original')  || {}).value) || 0;
+    var monthly  = parseFloat((document.getElementById('df-monthly')   || {}).value) || 0;
+    var tenor    = parseInt((document.getElementById('df-tenor')       || {}).value) || 0;
+    var billing  = (document.getElementById('df-billing') || {}).value || '';
+
+    // Auto-calc interest rate for Bundled billing
+    if (billing === 'Bundled_Unknown' && orig > 0 && monthly > 0 && tenor > 0) {
+      var totalBayar   = monthly * tenor;
+      var totalBunga   = totalBayar - orig;
+      var flatRateYear = (totalBunga / orig / (tenor / 12)) * 100;
+      var rateEl = document.getElementById('df-rate');
+      var hintEl = document.getElementById('df-rate-hint');
+      if (rateEl) rateEl.value = flatRateYear.toFixed(2);
+      if (hintEl) {
+        hintEl.textContent =
+          'Flat rate: ' + flatRateYear.toFixed(2) + '%/tahun · ' +
+          'Total cicilan: Rp ' + totalBayar.toLocaleString('id') + ' · ' +
+          'Total bunga: Rp ' + totalBunga.toLocaleString('id');
+      }
+    }
+
     _autoCalcMonthly();
   }
 
-  function onRateChange() { _autoCalcMonthly(); }
+  function onRateChange() { onAmountChange(); }
   function onTenorChange() {
     var tenor     = parseInt((document.getElementById('df-tenor') || {}).value) || 0;
     var remaining = document.getElementById('df-remaining');
     if (remaining && !remaining.value && tenor) remaining.value = tenor;
-    _autoCalcMonthly();
+    onAmountChange(); // recalc rate too
   }
 
   function _autoCalcMonthly() {
@@ -10370,7 +10387,8 @@ const DebtModule = (() => {
     var ref       = (document.getElementById('df-ref')          || {}).value || '';
     var limit     = parseFloat((document.getElementById('df-limit')      || {}).value) || 0;
     var original  = parseFloat((document.getElementById('df-original')   || {}).value) || 0;
-    var outstanding=parseFloat((document.getElementById('df-outstanding') || {}).value) || 0;
+    var disbursed   = parseFloat((document.getElementById('df-disbursed')  || {}).value) || 0;
+    var outstanding = original; // Auto-set from principal
     var rate      = parseFloat((document.getElementById('df-rate')        || {}).value) || 0;
     var intType   = (document.getElementById('df-interest-type') || {}).value || 'None';
     var billing   = (document.getElementById('df-billing')       || {}).value || 'Bundled_Unknown';
@@ -10553,7 +10571,12 @@ const DebtModule = (() => {
 
         // KPI Row
         '<div class="debt-detail-kpi">' +
-          _detailKPI('Outstanding', Utils.formatIDR(debt.outstanding_principal || 0), 'text-red') +
+          (function(){
+            var unpaid = schedules.filter(function(s){ return s.status !== 'Paid'; });
+            var calcOutstanding = unpaid.reduce(function(s,x){ return s+(x.total_installment||0);},0);
+            var displayOutstanding = calcOutstanding > 0 ? calcOutstanding : (debt.outstanding_principal||0);
+            return _detailKPI('Outstanding', Utils.formatIDR(displayOutstanding), 'text-red');
+          })() +
           (debt.credit_limit
             ? _detailKPI('Credit Limit', Utils.formatIDR(debt.credit_limit), '') +
               _detailKPI('Available', Utils.formatIDR(debt.available_credit || 0), 'text-green')
@@ -11405,6 +11428,7 @@ const DebtModule = (() => {
       description:           desc,
       original_amount:       amount,
       outstanding_principal: outstanding,
+      disbursed_amount:      disbursed || original,
       interest_rate:         rate,
       interest_type:         rate > 0 ? 'Flat' : 'None',
       billing_method:        type === 'Revolving' ? 'Revolving' : 'Fixed_Monthly',
@@ -16813,5 +16837,5 @@ window.addEventListener("DOMContentLoaded", function() {
   }
 });
 </script>
-  <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});});}</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/FinanceOS/sw.js').catch(function(){});});}</script>
 </body></html>
