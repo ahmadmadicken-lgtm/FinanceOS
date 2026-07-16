@@ -1,4 +1,4 @@
-<!-- Finance OS v5.13.7 Delete filter + edit in register build:20260716104700 -->
+<!-- Finance OS v5.13.8 Outstanding Bundled fix build:20260716111916 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -10617,9 +10617,19 @@ const DebtModule = (() => {
         '<div class="debt-detail-kpi">' +
           (function(){
             var unpaid = schedules.filter(function(s){ return s.status !== 'Paid'; });
-            var calcOutstanding = unpaid.reduce(function(s,x){ return s+(x.total_installment||0);},0);
-            var displayOutstanding = calcOutstanding > 0 ? calcOutstanding : (debt.outstanding_principal||0);
-            return _detailKPI('Outstanding', Utils.formatIDR(displayOutstanding), 'text-red');
+            var displayOutstanding;
+            if (debt.billing_method === 'Bundled_Unknown') {
+              // Bundled: outstanding = stored principal (total_installment includes bundled interest)
+              // Reduce by paid count: each paid cicilan reduces outstanding proportionally
+              var paidCount  = schedules.length - unpaid.length;
+              var perCicilan = (debt.original_amount || debt.outstanding_principal || 0) / (debt.tenor_months || 1);
+              displayOutstanding = Math.round((debt.original_amount || debt.outstanding_principal || 0) - (paidCount * perCicilan));
+            } else {
+              // Non-bundled: sum remaining principal from schedule
+              var calcOut = unpaid.reduce(function(s,x){ return s+(x.principal||0);},0);
+              displayOutstanding = calcOut > 0 ? calcOut : (debt.outstanding_principal||0);
+            }
+            return _detailKPI('Outstanding', Utils.formatIDR(Math.max(0, displayOutstanding)), 'text-red');
           })() +
           (debt.credit_limit
             ? _detailKPI('Credit Limit', Utils.formatIDR(debt.credit_limit), '') +
@@ -11702,9 +11712,17 @@ const DebtModule = (() => {
     var facility = DB.DebtRegister.byId(debtId);
     if (facility) {
       var remaining = DB.DebtSchedule.byDebt(debtId).filter(function(s){ return s.status !== 'Paid'; });
+      var newOut2;
+      if (facility.billing_method === 'Bundled_Unknown') {
+        var pc2 = (facility.tenor_months||24) - remaining.length;
+        var ppc = (facility.original_amount||facility.outstanding_principal||0)/(facility.tenor_months||1);
+        newOut2 = Math.round(Math.max(0,(facility.original_amount||0)-(pc2*ppc)));
+      } else {
+        newOut2 = remaining.reduce(function(s,x){return s+(x.principal||0);},0);
+      }
       DB.DebtRegister.save(Object.assign({}, facility, {
         remaining_installments: remaining.length,
-        outstanding_principal: remaining.reduce(function(s,x){ return s+(x.total_installment||0);},0)
+        outstanding_principal:  newOut2
       }));
     }
     Utils.toast(count + ' cicilan berhasil di-mark lunas');
