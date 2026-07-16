@@ -1,4 +1,4 @@
-<!-- Finance OS v5.13.4 Outstanding validation + auto rate fix build:20260716003247 -->
+<!-- Finance OS v5.13.6 Smart first_due date build:20260716103722 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3579,8 +3579,31 @@ const DB = (() => {
     generate: function(debt) {
       var schedules = [];
       var outstanding = debt.outstanding_principal;
-      var dueDate = new Date(debt.next_due_date);
       var n = debt.remaining_installments || debt.tenor_months || 1;
+
+      // Determine first due date:
+      // If next_due_date is explicitly provided AND is earlier than start+1month,
+      // use next_due_date (handles cases like Allo Bank where due = same month as disbursement)
+      // Otherwise for full facilities, calculate from start_date + 1 month
+      var dueDate;
+      var autoFirstDue = null;
+      if (debt.start_date && debt.remaining_installments === debt.tenor_months) {
+        autoFirstDue = new Date(debt.start_date);
+        autoFirstDue.setMonth(autoFirstDue.getMonth() + 1);
+      }
+      if (debt.next_due_date) {
+        var explicitDue = new Date(debt.next_due_date);
+        // Use explicit if: no auto-calc, OR explicit is earlier than auto (same-month due)
+        if (!autoFirstDue || explicitDue <= autoFirstDue) {
+          dueDate = explicitDue;
+        } else {
+          dueDate = autoFirstDue;
+        }
+      } else if (autoFirstDue) {
+        dueDate = autoFirstDue;
+      } else {
+        dueDate = new Date(debt.next_due_date || Utils.today());
+      }
       var rate = (debt.interest_rate || 0) / 100 / 12;
 
       for (var i = 1; i <= n; i++) {
@@ -9962,18 +9985,18 @@ const DebtModule = (() => {
 
   // ── Delete ────────────────────────────────────────────────
   function _deleteDebt(debt_id) {
-    Utils.confirm('Hapus fasilitas ini? Jadwal angsuran juga akan dihapus. Tindakan tidak dapat dibatalkan.', function() {
+    Utils.confirm('Hapus fasilitas ini? Jadwal angsuran juga akan dihapus. Tindakan tidak dapat dibatalkan.', async function() {
       var result = DB.DebtRegister.delete(debt_id);
       if (result && result.error) { Utils.toast(result.error, 'error'); return; }
 
-      // Soft delete: send tombstone to Supabase so pull won't restore it
+      // Soft delete: await tombstone sent to Supabase BEFORE render
+      // This prevents auto-pull from restoring the deleted record
       if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
-        SupabaseSync.deleteRecord('fos_debt_register', 'debt_id', debt_id);
-        // Mark all schedules for this debt as deleted
+        await SupabaseSync.deleteRecord('fos_debt_register', 'debt_id', debt_id);
         var scheds = DB.DebtSchedule.byDebt ? DB.DebtSchedule.byDebt(debt_id) : [];
-        scheds.forEach(function(s) {
-          SupabaseSync.deleteRecord('fos_debt_schedule', 'schedule_id', s.schedule_id);
-        });
+        for (var i = 0; i < scheds.length; i++) {
+          await SupabaseSync.deleteRecord('fos_debt_schedule', 'schedule_id', scheds[i].schedule_id);
+        }
       }
       Utils.toast('Fasilitas berhasil dihapus');
       _renderRegister();
