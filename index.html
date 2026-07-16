@@ -1,4 +1,4 @@
-<!-- Finance OS v5.13.9 build:20260716115845 -->
+<!-- Finance OS v5.14.0 Debt pull merge fix build:20260716220015 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4821,12 +4821,30 @@ const SupabaseSync = (() => {
     for (var lsKey in TABLE_MAP) {
       var map  = TABLE_MAP[lsKey];
       try {
-        var rows = await _api('GET', map.table + '?select=data&order=updated_at.asc', null);
+        var rows = await _api('GET', map.table + '?select=data,updated_at&order=updated_at.asc', null);
         if (rows && rows.length > 0) {
           // Filter out soft-deleted records (_deleted: true)
           var records = rows.map(function(r) { return r.data; })
                            .filter(function(r) { return !r._deleted; });
-          localStorage.setItem(lsKey, JSON.stringify(records));
+          // For debt tables: merge instead of overwrite
+          // Keep local records that are newer than what Supabase has
+          if (lsKey === 'fos_debt_schedule' || lsKey === 'fos_debt_register') {
+            var localRaw = localStorage.getItem(lsKey);
+            var localRecs = localRaw ? JSON.parse(localRaw) : [];
+            var idKey = map.idKey;
+            var localMap = {};
+            localRecs.forEach(function(r){ localMap[r[idKey]] = r; });
+            // Merge: Supabase records update local, but local-only records are kept
+            var merged = records.slice();
+            localRecs.forEach(function(lr){
+              if (!lr._deleted && !merged.find(function(r){ return r[idKey] === lr[idKey]; })) {
+                merged.push(lr);
+              }
+            });
+            localStorage.setItem(lsKey, JSON.stringify(merged));
+          } else {
+            localStorage.setItem(lsKey, JSON.stringify(records));
+          }
         }
       } catch(e) {
         console.warn('[SupabaseSync] Pull failed for', lsKey, ':', e.message);
