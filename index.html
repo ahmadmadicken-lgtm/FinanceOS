@@ -1,4 +1,4 @@
-<!-- Finance OS v5.13.2 Dana Diterima + auto rate build:20260716000714 -->
+<!-- Finance OS v5.13.3 Soft delete fix build:20260716001643 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4799,7 +4799,9 @@ const SupabaseSync = (() => {
       try {
         var rows = await _api('GET', map.table + '?select=data&order=updated_at.asc', null);
         if (rows && rows.length > 0) {
-          var records = rows.map(function(r) { return r.data; });
+          // Filter out soft-deleted records (_deleted: true)
+          var records = rows.map(function(r) { return r.data; })
+                           .filter(function(r) { return !r._deleted; });
           localStorage.setItem(lsKey, JSON.stringify(records));
         }
       } catch(e) {
@@ -5006,11 +5008,18 @@ const SupabaseSync = (() => {
   }
 
 
-  // Delete a specific record from Supabase by ID
+  // Soft delete: mark record as _deleted in Supabase
+  // More reliable than HTTP DELETE due to header/RLS constraints
   async function deleteRecord(tableName, idKey, idValue) {
     if (!_online) return;
     try {
-      await _api('DELETE', tableName + '?' + idKey + '=eq.' + encodeURIComponent(idValue), null);
+      // Upsert a tombstone record with _deleted: true
+      var tombstone = {};
+      tombstone[idKey] = idValue;
+      tombstone['_deleted'] = true;
+      await _api('POST', tableName + '?on_conflict=' + idKey,
+        [{ [idKey]: idValue, data: tombstone, updated_at: new Date().toISOString() }]
+      );
     } catch(e) {
       console.warn('[SupabaseSync] deleteRecord failed:', e);
     }
@@ -9956,11 +9965,15 @@ const DebtModule = (() => {
     Utils.confirm('Hapus fasilitas ini? Jadwal angsuran juga akan dihapus. Tindakan tidak dapat dibatalkan.', function() {
       var result = DB.DebtRegister.delete(debt_id);
       if (result && result.error) { Utils.toast(result.error, 'error'); return; }
-      // Delete from Supabase immediately so pull doesn't restore it
+
+      // Soft delete: send tombstone to Supabase so pull won't restore it
       if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
         SupabaseSync.deleteRecord('fos_debt_register', 'debt_id', debt_id);
-        SupabaseSync.deleteRecord('fos_debt_schedule', 'debt_id', debt_id);
-        SupabaseSync.deleteRecord('fos_debt_obligations', 'obligation_id', debt_id);
+        // Mark all schedules for this debt as deleted
+        var scheds = DB.DebtSchedule.byDebt ? DB.DebtSchedule.byDebt(debt_id) : [];
+        scheds.forEach(function(s) {
+          SupabaseSync.deleteRecord('fos_debt_schedule', 'schedule_id', s.schedule_id);
+        });
       }
       Utils.toast('Fasilitas berhasil dihapus');
       _renderRegister();
