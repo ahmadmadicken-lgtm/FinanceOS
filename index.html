@@ -1,4 +1,4 @@
-<!-- Finance OS v5.13.6 Smart first_due date build:20260716103722 -->
+<!-- Finance OS v5.13.7 Delete filter + edit in register build:20260716104700 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3441,11 +3441,11 @@ const DB = (() => {
   // DEBT REGISTER
   // ══════════════════════════════════════════════════════════
   const DebtRegister = {
-    all:      () => _get(KEYS.debt_register),
-    active:   () => _get(KEYS.debt_register).filter(function(d){ return d.status === 'Active' || d.status === 'Overdue'; }),
-    byId:     (id) => _get(KEYS.debt_register).find(function(d){ return d.debt_id === id; }),
-    byAccount:(account_id) => _get(KEYS.debt_register).filter(function(d){ return d.account_id === account_id; }),
-    byEntity: (entity_id) => _get(KEYS.debt_register).filter(function(d){ return d.entity_id === entity_id; }),
+    all:      () => _get(KEYS.debt_register).filter(function(d){ return !d._deleted; }),
+    active:   () => _get(KEYS.debt_register).filter(function(d){ return !d._deleted && (d.status === 'Active' || d.status === 'Overdue'); }),
+    byId:     (id) => _get(KEYS.debt_register).find(function(d){ return d.debt_id === id && !d._deleted; }),
+    byAccount:(account_id) => _get(KEYS.debt_register).filter(function(d){ return !d._deleted && d.account_id === account_id; }),
+    byEntity: (entity_id) => _get(KEYS.debt_register).filter(function(d){ return !d._deleted && d.entity_id === entity_id; }),
 
     save: function(debt) {
       var list = _get(KEYS.debt_register);
@@ -9935,6 +9935,7 @@ const DebtModule = (() => {
                       (d.status !== 'Settled'
                         ? '<button class="btn-action text-green" data-id="' + d.debt_id + '" data-action="payment" title="Catat Pembayaran">&#43;</button>'
                         : '') +
+                      '<button class="btn-action text-blue" data-id="' + d.debt_id + '" data-action="edit" title="Edit">&#9998;</button>' +
                       '<button class="btn-action text-red" data-id="' + d.debt_id + '" data-action="delete" title="Hapus">&#128465;</button>' +
                     '</div>' +
                   '</td>' +
@@ -9964,6 +9965,7 @@ const DebtModule = (() => {
         var id     = btn.getAttribute('data-id');
         var action = btn.getAttribute('data-action');
         if (action === 'detail')  showDetail(id);
+        if (action === 'edit')    showEditFacility(id);
         if (action === 'payment') showPayment(id);
         if (action === 'delete')  _deleteDebt(id);
       };
