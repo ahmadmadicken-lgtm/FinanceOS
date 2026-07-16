@@ -1,12 +1,10 @@
-<!-- Finance OS v5.13.8 Outstanding Bundled fix build:20260716111916 -->
+<!-- Finance OS v5.13.9 build:20260716115845 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Finance OS"/>
-<link rel="manifest" href="/FinanceOS/manifest.json"/>
-<link rel="apple-touch-icon" href="/FinanceOS/icons/apple-touch-icon.png"/>
+<link rel="manifest" href="/FinanceOS/manifest.json"/><link rel="apple-touch-icon" href="/FinanceOS/icons/apple-touch-icon.png"/>
 <script>window.netlifyIdentity={on:function(){},off:function(){},open:function(){},close:function(){},init:function(){},currentUser:function(){return null;},isConfigured:function(){return false;},logout:function(){},refresh:function(){}}</script>
 <style>/* ============================================================
    FINANCE OS — DESIGN SYSTEM
@@ -3531,9 +3529,11 @@ const DB = (() => {
       future.setDate(future.getDate() + (days || 30));
       var todayStr  = today.toISOString().split('T')[0];
       var futureStr = future.toISOString().split('T')[0];
+      var validIds  = _get(KEYS.debt_register).filter(function(d){ return !d._deleted; }).map(function(d){ return d.debt_id; });
       return _get(KEYS.debt_schedule)
         .filter(function(s){
-          return s.status === 'Scheduled' &&
+          return !s._deleted && validIds.indexOf(s.debt_id) >= 0 &&
+            s.status === 'Scheduled' &&
             s.due_date >= todayStr &&
             s.due_date <= futureStr;
         })
@@ -3542,9 +3542,10 @@ const DB = (() => {
 
     // Overdue schedules
     overdue: function() {
-      var today = new Date().toISOString().split('T')[0];
+      var today    = new Date().toISOString().split('T')[0];
+      var validIds = _get(KEYS.debt_register).filter(function(d){ return !d._deleted; }).map(function(d){ return d.debt_id; });
       return _get(KEYS.debt_schedule)
-        .filter(function(s){ return s.status === 'Scheduled' && s.due_date < today; });
+        .filter(function(s){ return !s._deleted && validIds.indexOf(s.debt_id) >= 0 && s.status === 'Scheduled' && s.due_date < today; });
     },
 
     save: function(schedule) {
@@ -10619,11 +10620,9 @@ const DebtModule = (() => {
             var unpaid = schedules.filter(function(s){ return s.status !== 'Paid'; });
             var displayOutstanding;
             if (debt.billing_method === 'Bundled_Unknown') {
-              // Bundled: outstanding = stored principal (total_installment includes bundled interest)
-              // Reduce by paid count: each paid cicilan reduces outstanding proportionally
-              var paidCount  = schedules.length - unpaid.length;
-              var perCicilan = (debt.original_amount || debt.outstanding_principal || 0) / (debt.tenor_months || 1);
-              displayOutstanding = Math.round((debt.original_amount || debt.outstanding_principal || 0) - (paidCount * perCicilan));
+              // Bundled: outstanding = remaining cicilan × monthly amount
+              // (total_installment already = monthly for Bundled)
+              displayOutstanding = unpaid.length * (debt.monthly_installment || 0);
             } else {
               // Non-bundled: sum remaining principal from schedule
               var calcOut = unpaid.reduce(function(s,x){ return s+(x.principal||0);},0);
@@ -11668,7 +11667,7 @@ const DebtModule = (() => {
           '<table class="table" style="font-size:.78rem"><thead><tr>' +
             '<th><input type="checkbox" id="bulk-check-all" onchange="DebtModule._bulkCheckAll()"></th>' +
             '<th>#</th><th>Jatuh Tempo</th><th class="text-right">Total</th><th>Pasangkan Transaksi</th>' +
-          '</tr></thead><tbody>' + rows + '</tbody></table>' +
+          '</tr></thead><tbody>' + rows.join('') + '</tbody></table>' +
           '<div class="form-group" style="margin-top:.75rem">' +
             '<label class="text-sm">Tanggal Bayar</label>' +
             '<input class="form-input" type="date" id="bulk-pay-date" value="' + Utils.today() + '" style="max-width:200px">' +
@@ -11714,9 +11713,7 @@ const DebtModule = (() => {
       var remaining = DB.DebtSchedule.byDebt(debtId).filter(function(s){ return s.status !== 'Paid'; });
       var newOut2;
       if (facility.billing_method === 'Bundled_Unknown') {
-        var pc2 = (facility.tenor_months||24) - remaining.length;
-        var ppc = (facility.original_amount||facility.outstanding_principal||0)/(facility.tenor_months||1);
-        newOut2 = Math.round(Math.max(0,(facility.original_amount||0)-(pc2*ppc)));
+        newOut2 = remaining.length * (facility.monthly_installment || 0);
       } else {
         newOut2 = remaining.reduce(function(s,x){return s+(x.principal||0);},0);
       }
