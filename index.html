@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.2 Debt push-only no-pull build:20260717025102 -->
+<!-- Finance OS v5.14.3 Inline checkbox bulk mark build:20260717044127 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -10409,19 +10409,25 @@ const DebtModule = (() => {
       '<div style="overflow-x:auto">' +
       '<table class="table debt-table">' +
         '<thead><tr>' +
+          '<th style="width:32px"><input type="checkbox" id="bulk-check-all-inline"></th>' +
           '<th>#</th><th>Jatuh Tempo</th><th class="text-right">Pokok</th>' +
           '<th class="text-right">Bunga</th><th class="text-right">Total</th>' +
           '<th class="text-right">Sisa Setelah</th>' +
+          '<th>Status</th><th>Tgl Bayar</th>' +
         '</tr></thead>' +
         '<tbody>' +
         schedules.slice(0, 24).map(function(s) {
-          return '<tr>' +
+          var isPaid = s.status === 'Paid';
+          return '<tr style="' + (isPaid ? 'opacity:.6' : '') + '">' +
+            '<td><input type="checkbox" class="bulk-row-check" data-id="' + s.schedule_id + '" ' + (isPaid ? 'disabled' : '') + '></td>' +
             '<td class="text-sm text-muted">' + s.installment_no + '</td>' +
             '<td class="text-sm">' + Utils.formatDate(s.due_date) + '</td>' +
             '<td class="text-right mono text-sm">' + Utils.formatIDR(s.principal) + '</td>' +
             '<td class="text-right mono text-sm text-red">' + Utils.formatIDR(s.interest) + '</td>' +
             '<td class="text-right mono text-sm">' + Utils.formatIDR(s.total_installment) + '</td>' +
             '<td class="text-right mono text-sm text-muted">' + Utils.formatIDR(s.outstanding_after) + '</td>' +
+            '<td>' + (isPaid ? '<span class="badge badge-green">&#10003; Lunas</span>' : _schedStatusBadge(s)) + '</td>' +
+            '<td class="text-sm text-muted">' + (s.payment_date ? Utils.formatDate(s.payment_date) : '—') + '</td>' +
           '</tr>';
         }).join('') +
         (schedules.length > 24 ? '<tr><td colspan="6" class="text-center text-muted text-sm">... dan ' + (schedules.length-24) + ' angsuran lainnya</td></tr>' : '') +
@@ -10734,13 +10740,11 @@ const DebtModule = (() => {
             '</table></div>' +
             // Bulk Mark Paid button
             '<div class="form-actions" style="margin-top:.75rem">' +
-              '<button class="btn btn-secondary" onclick="DebtModule.showBulkMarkPaid(' + JSON.stringify(debt.debt_id) + ')">' +
-                '&#10003; Bulk Mark Cicilan Sebagai Lunas' +
-              '</button>' +
+              '<button class="btn btn-secondary" id="inline-bulk-mark-btn">&#10003; Mark Cicilan Terpilih Sebagai Lunas</button>' +
             '</div>'
         ) +
       '</div>' +
-      '<div id="bulk-mark-area"></div>' +
+
 
       // ── Tab: History Pembayaran ───────────────────────────
       '<div id="tab-content-payments" class="debt-tab-content" style="display:none">' +
@@ -10812,6 +10816,53 @@ const DebtModule = (() => {
     var btnEdit  = document.getElementById('btn-edit-debt');
     if (btnEdit)  btnEdit.onclick  = function() { showEditFacility(_selectedDebtId); };
     if (btnHapus) btnHapus.onclick = function() { _deleteDebt(_selectedDebtId); };
+
+    // Check-all binding for inline checkboxes
+    var checkAll = document.getElementById('bulk-check-all-inline');
+    if (checkAll) {
+      checkAll.onchange = function() {
+        document.querySelectorAll('.bulk-row-check:not(:disabled)').forEach(function(c){ c.checked = checkAll.checked; });
+      };
+    }
+
+    // Inline bulk mark button
+    var inlineBulkBtn = document.getElementById('inline-bulk-mark-btn');
+    if (inlineBulkBtn) {
+      inlineBulkBtn.onclick = function() {
+        var checks = document.querySelectorAll('.bulk-row-check:checked');
+        if (checks.length === 0) { Utils.toast('Pilih minimal satu cicilan', 'error'); return; }
+        var count = 0;
+        checks.forEach(function(cb) {
+          var schedId = cb.getAttribute('data-id');
+          var sched = DB.DebtSchedule.byId(schedId);
+          if (!sched || sched.status === 'Paid') return;
+          // Save as Paid with no payment_date - will be set when paired with transaction
+          DB.DebtSchedule.save(Object.assign({}, sched, {
+            status: 'Paid',
+            payment_date: null,  // no date - wait for pairing
+            paid_amount: sched.total_installment,
+            txn_id: null
+          }));
+          count++;
+        });
+        // Update outstanding
+        var facility = DB.DebtRegister.byId(_selectedDebtId);
+        if (facility) {
+          var remaining = DB.DebtSchedule.byDebt(_selectedDebtId).filter(function(s){ return s.status !== 'Paid'; });
+          var newOut = remaining.length * (facility.monthly_installment || 0);
+          DB.DebtRegister.save(Object.assign({}, facility, {
+            remaining_installments: remaining.length,
+            outstanding_principal: newOut
+          }));
+        }
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+          SupabaseSync.pushNow('fos_debt_schedule');
+          SupabaseSync.pushNow('fos_debt_register');
+        }
+        Utils.toast(count + ' cicilan berhasil di-mark lunas');
+        showDetail(_selectedDebtId);
+      };
+    }
     // Bind tabs
     body.querySelectorAll('.debt-tab[data-tab]').forEach(function(btn) {
       btn.onclick = function() { _switchTab(btn.getAttribute('data-tab')); };
