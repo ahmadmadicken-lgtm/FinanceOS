@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.1 generate Bundled + saveNew clear build:20260717021910 -->
+<!-- Finance OS v5.14.2 Debt push-only no-pull build:20260717025102 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4822,8 +4822,12 @@ const SupabaseSync = (() => {
 
   // ── Pull all data from Supabase → localStorage ──────────────
   async function pullFromSupabase() {
-    // Pull all transaction + debt tables via TABLE_MAP
+    // Pull all transaction tables via TABLE_MAP
+    // NOTE: debt tables (fos_debt_register, fos_debt_schedule) are push-only
+    // They are NOT pulled from Supabase to prevent stale data overwrites
+    var SKIP_PULL_KEYS = ['fos_debt_register', 'fos_debt_schedule', 'fos_debt_obligations'];
     for (var lsKey in TABLE_MAP) {
+      if (SKIP_PULL_KEYS.indexOf(lsKey) >= 0) continue; // Skip debt tables on pull
       var map  = TABLE_MAP[lsKey];
       try {
         var rows = await _api('GET', map.table + '?select=data,updated_at&order=updated_at.asc', null);
