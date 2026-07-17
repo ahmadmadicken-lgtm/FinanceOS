@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.0 Debt pull merge fix build:20260716220015 -->
+<!-- Finance OS v5.14.1 generate Bundled + saveNew clear build:20260717021910 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3579,7 +3579,12 @@ const DB = (() => {
     // Generate schedule from debt record
     generate: function(debt) {
       var schedules = [];
-      var outstanding = debt.outstanding_principal;
+      // For Bundled: track outstanding from total cicilan (monthly * tenor)
+      // For others: track from outstanding_principal
+      var isBundled = debt.billing_method === 'Bundled_Unknown';
+      var outstanding = isBundled
+        ? (debt.monthly_installment || 0) * (debt.remaining_installments || debt.tenor_months || 1)
+        : (debt.outstanding_principal || 0);
       var n = debt.remaining_installments || debt.tenor_months || 1;
 
       // Determine first due date:
@@ -10534,9 +10539,14 @@ const DebtModule = (() => {
     // Save debt register
     DB.DebtRegister.save(debt);
 
-    // Generate and save schedule
+    // Generate and save schedule — clear existing first to avoid duplicates
+    var existingScheds = DB.DebtSchedule.byDebt(debt.debt_id);
+    if (existingScheds.length > 0) {
+      // Remove all existing schedules for this debt from localStorage
+      var allScheds = DB.DebtSchedule.all().filter(function(s){ return s.debt_id !== debt.debt_id; });
+      localStorage.setItem('fos_debt_schedule', JSON.stringify(allScheds));
+    }
     var schedules = DB.DebtSchedule.generate(debt);
-    // Assign IDs
     schedules.forEach(function(s, i) {
       s.schedule_id = _newSchedId(debt.debt_id, i+1);
     });
