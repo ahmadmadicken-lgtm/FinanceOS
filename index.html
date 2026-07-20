@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.3 Inline checkbox bulk mark build:20260717044127 -->
+<!-- Finance OS v5.14.4 Optimized Catat Pembayaran build:20260720015613 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -10705,6 +10705,7 @@ const DebtModule = (() => {
           ? '<div class="debt-empty">Belum ada jadwal angsuran. Kemungkinan fasilitas revolving tanpa jadwal tetap.</div>'
           : '<div style="overflow-x:auto"><table class="table debt-table">' +
               '<thead><tr>' +
+                '<th style="width:32px"><input type="checkbox" id="bulk-check-all-inline"></th>' +
                 '<th>#</th><th>Jatuh Tempo</th>' +
                 '<th class="text-right">Pokok</th><th class="text-right">Bunga</th>' +
                 '<th class="text-right">Admin/Denda</th><th class="text-right">Total</th>' +
@@ -10716,7 +10717,9 @@ const DebtModule = (() => {
                 var isOverdue = s.status === 'Scheduled' && s.due_date < Utils.today();
                 var rowCls   = isOverdue ? 'debt-row-overdue' : s.status === 'Paid' ? 'debt-row-paid' : '';
                 var status   = isOverdue ? 'Overdue' : s.status;
+                var isPaid   = s.status === 'Paid';
                 return '<tr class="' + rowCls + '">' +
+                  '<td><input type="checkbox" class="bulk-row-check" data-id="' + s.schedule_id + '"' + (isPaid ? ' disabled' : '') + '></td>' +
                   '<td class="text-sm text-muted">' + s.installment_no + '</td>' +
                   '<td class="text-sm">' + Utils.formatDate(s.due_date) + '</td>' +
                   '<td class="text-right mono text-sm">' + Utils.formatIDR(s.principal || 0) + '</td>' +
@@ -10897,26 +10900,26 @@ const DebtModule = (() => {
     var debt  = DB.DebtRegister.byId(_selectedDebtId);
     if (!debt) { Utils.toast('Fasilitas tidak ditemukan', 'error'); showRegister(); return; }
 
-    var acct      = DB.Accounts.byId(debt.account_id);
-    var cashAccts = DB.Accounts.all().filter(function(a){
-      return ['Bank','E-Wallet','Platform'].includes(a.account_type) && a.status === 'Active';
-    });
+    var acct = DB.Accounts.byId(debt.account_id);
 
-    // Find next unpaid schedule
-    var schedules  = DB.DebtSchedule.byDebt(debt.debt_id)
+    // All schedules - unpaid first, then paid
+    var unpaidScheds = DB.DebtSchedule.byDebt(debt.debt_id)
       .filter(function(s){ return s.status !== 'Paid'; })
       .sort(function(a,b){ return a.installment_no - b.installment_no; });
-    var nextSched  = schedules[0] || null;
 
-    // Default allocation from schedule
-    var defPrincipal = nextSched ? (nextSched.principal || 0) : 0;
-    var defInterest  = nextSched ? (nextSched.interest  || 0) : 0;
-    var defAdmin     = nextSched ? (nextSched.admin_fee || 0) : 0;
-    var defTotal     = defPrincipal + defInterest + defAdmin;
+    // All accounts across all entities for payment source
+    var allAccts = DB.Accounts.all().filter(function(a){ return a.status === 'Active'; });
 
-    // COA for ledger preview
-    var liabCOA = acct ? acct.coa_code : '203';
-    var liabCOAName = DB.COA.byCode(liabCOA) ? liabCOA + ' ' + DB.COA.byCode(liabCOA).coa_name : liabCOA;
+    // Existing transactions that could be paired (EVT-D04 or payment related)
+    var pairedTxns = DB.Transactions.all().filter(function(t){
+      return (t.event_id === 'EVT-D04' || t.cf_class === 'Debt') &&
+             t.status === 'Posted' && !t.reference_id;
+    }).sort(function(a,b){ return b.txn_date.localeCompare(a.txn_date); }).slice(0, 50);
+
+    // Outstanding calculation for Bundled
+    var displayOutstanding = debt.billing_method === 'Bundled_Unknown'
+      ? unpaidScheds.length * (debt.monthly_installment || 0)
+      : (debt.outstanding_principal || 0);
 
     body.innerHTML =
       '<div class="debt-page">' +
@@ -10932,401 +10935,289 @@ const DebtModule = (() => {
       '<div class="debt-payment-summary">' +
         '<div class="debt-pmt-info">' +
           '<div class="debt-pmt-info-label">Outstanding</div>' +
-          '<div class="debt-pmt-info-val text-red">' + Utils.formatIDR(debt.outstanding_principal || 0) + '</div>' +
-        '</div>' +
-        (debt.credit_limit
-          ? '<div class="debt-pmt-info">' +
-              '<div class="debt-pmt-info-label">Available Credit</div>' +
-              '<div class="debt-pmt-info-val text-green">' + Utils.formatIDR(debt.available_credit || 0) + '</div>' +
-            '</div>'
-          : '') +
-        '<div class="debt-pmt-info">' +
-          '<div class="debt-pmt-info-label">Angsuran Berikutnya</div>' +
-          '<div class="debt-pmt-info-val">' +
-            (nextSched
-              ? 'ke-' + nextSched.installment_no + ' — ' + Utils.formatDate(nextSched.due_date)
-              : 'Tidak ada jadwal') +
-          '</div>' +
+          '<div class="debt-pmt-info-val text-red">' + Utils.formatIDR(displayOutstanding) + '</div>' +
         '</div>' +
         '<div class="debt-pmt-info">' +
-          '<div class="debt-pmt-info-label">Cicilan Terjadwal</div>' +
-          '<div class="debt-pmt-info-val">' + Utils.formatIDR(defTotal) + '</div>' +
+          '<div class="debt-pmt-info-label">Sisa Angsuran</div>' +
+          '<div class="debt-pmt-info-val">' + unpaidScheds.length + ' dari ' + (debt.tenor_months||0) + '</div>' +
+        '</div>' +
+        '<div class="debt-pmt-info">' +
+          '<div class="debt-pmt-info-label">Cicilan/Bulan</div>' +
+          '<div class="debt-pmt-info-val">' + Utils.formatIDR(debt.monthly_installment||0) + '</div>' +
         '</div>' +
       '</div>' +
 
       '<div class="form-card">' +
 
-        // Section 1: Detail Pembayaran
+        // Section 1: Pilih Cicilan
         '<div class="form-section">' +
-          '<div class="form-section-title">1 — Detail Pembayaran</div>' +
+          '<div class="form-section-title">1 — Pilih Cicilan yang Dibayar</div>' +
+          '<div class="form-hint text-muted text-sm" style="margin-bottom:.75rem">' +
+            'Centang cicilan yang ingin dicatat sebagai lunas. Bisa memilih lebih dari satu.' +
+          '</div>' +
+          '<table class="table" style="font-size:.85rem">' +
+            '<thead><tr>' +
+              '<th style="width:32px"><input type="checkbox" id="pmt-check-all"></th>' +
+              '<th>#</th><th>Jatuh Tempo</th><th class="text-right">Total</th><th>Status</th>' +
+            '</tr></thead>' +
+            '<tbody>' +
+            unpaidScheds.map(function(s){
+              var isOverdue = s.due_date < Utils.today();
+              return '<tr>' +
+                '<td><input type="checkbox" class="pmt-sched-check" data-id="' + s.schedule_id + '" data-amount="' + s.total_installment + '"></td>' +
+                '<td class="text-muted">' + s.installment_no + '</td>' +
+                '<td>' + Utils.formatDate(s.due_date) + '</td>' +
+                '<td class="text-right mono">' + Utils.formatIDR(s.total_installment) + '</td>' +
+                '<td>' + (isOverdue ? '<span class="badge badge-red">Overdue</span>' : '<span class="badge">Terjadwal</span>') + '</td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody>' +
+          '</table>' +
+          '<div style="margin-top:.5rem;font-size:.85rem;color:var(--text-muted)">' +
+            'Total dipilih: <strong id="pmt-selected-total">Rp 0</strong> (<span id="pmt-selected-count">0</span> cicilan)' +
+          '</div>' +
+        '</div>' +
+
+        // Section 2: Detail Pembayaran
+        '<div class="form-section">' +
+          '<div class="form-section-title">2 — Detail Pembayaran</div>' +
           '<div class="form-row">' +
             '<div class="form-group">' +
-              '<label>Tanggal Pembayaran <span class="required">*</span></label>' +
-              '<input class="form-input" type="date" id="pmt-date" value="' + Utils.today() + '" onchange="DebtModule.onPmtChange()">' +
+              '<label>Tanggal Pembayaran <span class="text-muted text-xs">(opsional — isi jika diketahui)</span></label>' +
+              '<input class="form-input" type="date" id="pmt-date" placeholder="Kosongkan jika akan di-pair nanti">' +
+              '<small class="form-hint">Biarkan kosong untuk diisi saat pairing dengan transaksi</small>' +
             '</div>' +
             '<div class="form-group">' +
               '<label>Rekening Sumber <span class="required">*</span></label>' +
               '<select class="form-input" id="pmt-account">' +
                 '<option value="">— Pilih Rekening —</option>' +
-                cashAccts.map(function(a){
-                  return '<option value="' + a.account_id + '" data-coa="' + a.coa_code + '">' + a.account_name + '</option>';
-                }).join('') +
-              '</select>' +
-            '</div>' +
-            '<div class="form-group">' +
-              '<label>Angsuran ke-</label>' +
-              '<select class="form-input" id="pmt-sched-id" onchange="DebtModule.onSchedChange()">' +
-                '<option value="">— Auto (berikutnya) —</option>' +
-                schedules.map(function(s){
-                  var lbl = '#' + s.installment_no + ' — ' + Utils.formatDate(s.due_date) + ' — ' + Utils.formatIDR(s.total_installment);
-                  return '<option value="' + s.schedule_id + '">' + lbl + '</option>';
+                allAccts.map(function(a){
+                  var entity = DB.Entities.byId ? (DB.Entities.byId(a.entity_id) || {}) : {};
+                  var label = a.account_name + (entity.entity_name ? ' (' + entity.entity_name + ')' : '');
+                  return '<option value="' + a.account_id + '" data-coa="' + (a.coa_code||'') + '">' + label + '</option>';
                 }).join('') +
               '</select>' +
             '</div>' +
           '</div>' +
+
+          // Admin fee and interest (collapsed for Bundled)
+          (debt.billing_method === 'Bundled_Unknown'
+            ? '<div class="form-hint text-muted text-sm">Billing Bundled — pokok dan bunga sudah termasuk dalam cicilan.</div>'
+            : '<div class="form-row">' +
+                '<div class="form-group">' +
+                  '<label>Bunga (Rp)</label>' +
+                  '<input class="form-input" type="number" id="pmt-interest" value="0" placeholder="0">' +
+                '</div>' +
+                '<div class="form-group">' +
+                  '<label>Admin Fee / Denda (Rp)</label>' +
+                  '<input class="form-input" type="number" id="pmt-admin" value="0" placeholder="0">' +
+                '</div>' +
+              '</div>'
+          ) +
+
+          // Notes
           '<div class="form-group">' +
-            '<label>Total Dibayar (Rp) <span class="required">*</span></label>' +
-            '<input class="form-input" type="number" id="pmt-total" value="' + defTotal + '" oninput="DebtModule.onTotalChange()" placeholder="0">' +
-            '<small class="form-hint">Total kas yang keluar dari rekening</small>' +
+            '<label>Catatan</label>' +
+            '<input class="form-input" type="text" id="pmt-notes" placeholder="Opsional">' +
           '</div>' +
         '</div>' +
 
-        // Section 2: Alokasi Pembayaran
-        '<div class="form-section">' +
-          '<div class="form-section-title">2 — Alokasi Pembayaran</div>' +
-          '<div class="debt-allocation-box">' +
-            '<div class="debt-alloc-row">' +
-              '<label class="debt-alloc-label">Admin Fee / Denda</label>' +
-              '<input class="form-input debt-alloc-input" type="number" id="pmt-admin" value="' + defAdmin + '" oninput="DebtModule.onAllocChange()" placeholder="0">' +
-              '<span class="debt-alloc-coa text-muted">&#8594; COA 542/543</span>' +
-            '</div>' +
-            '<div class="debt-alloc-row">' +
-              '<label class="debt-alloc-label">Bunga</label>' +
-              '<input class="form-input debt-alloc-input" type="number" id="pmt-interest" value="' + defInterest + '" oninput="DebtModule.onAllocChange()" placeholder="0">' +
-              '<span class="debt-alloc-coa text-muted">&#8594; COA 541</span>' +
-            '</div>' +
-            '<div class="debt-alloc-row">' +
-              '<label class="debt-alloc-label">Pokok</label>' +
-              '<input class="form-input debt-alloc-input" type="number" id="pmt-principal" value="' + defPrincipal + '" readonly>' +
-              '<span class="debt-alloc-coa text-muted">&#8594; ' + liabCOAName + '</span>' +
-            '</div>' +
-            '<div class="debt-alloc-divider"></div>' +
-            '<div class="debt-alloc-row debt-alloc-total">' +
-              '<label class="debt-alloc-label"><strong>Total</strong></label>' +
-              '<div class="form-input debt-alloc-input debt-alloc-total-val" id="pmt-alloc-total">' + Utils.formatIDR(defTotal) + '</div>' +
-              '<div class="debt-alloc-check" id="pmt-alloc-check"></div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="info-box" style="margin-top:.5rem;font-size:.76rem">' +
-            'Urutan alokasi: <strong>Admin Fee/Denda</strong> &#8594; <strong>Bunga</strong> &#8594; <strong>Pokok</strong><br>' +
-            'Pokok = Total &minus; Admin Fee &minus; Bunga (auto-hitung)' +
-          '</div>' +
-        '</div>' +
-
-        // Section 3: Ledger Preview
-        '<div class="form-section">' +
-          '<div class="form-section-title">3 — Preview Entry Akuntansi</div>' +
-          '<div id="pmt-ledger-preview">' + _buildLedgerPreview(defPrincipal, defInterest, defAdmin, defTotal, liabCOA, '101') + '</div>' +
-        '</div>' +
-
-        // Section 4: Available Credit Update (if revolving)
-        (debt.credit_limit
-          ? '<div class="form-section" id="pmt-credit-section">' +
-              '<div class="form-section-title">4 — Update Available Credit</div>' +
-              '<div class="debt-credit-update">' +
-                '<div class="debt-credit-row">' +
-                  '<span>Available Credit Sebelum</span>' +
-                  '<span class="mono">' + Utils.formatIDR(debt.available_credit || 0) + '</span>' +
-                '</div>' +
-                '<div class="debt-credit-row">' +
-                  '<span>+ Kenaikan' +
-                    (debt.credit_limit_type === 'Full_Revolving'
-                      ? ' (Full Revolving — sesuai total bayar)'
-                      : ' (Principal Only — sesuai pokok)') +
-                  '</span>' +
-                  '<span class="mono text-green" id="pmt-credit-delta">+ ' + Utils.formatIDR(debt.credit_limit_type === 'Full_Revolving' ? defTotal : defPrincipal) + '</span>' +
-                '</div>' +
-                '<div class="debt-credit-row debt-credit-after">' +
-                  '<span><strong>Available Credit Setelah</strong></span>' +
-                  '<span class="mono text-green" id="pmt-credit-after"><strong>' + Utils.formatIDR(Math.min(debt.credit_limit, (debt.available_credit||0) + (debt.credit_limit_type==='Full_Revolving'?defTotal:defPrincipal))) + '</strong></span>' +
-                '</div>' +
-              '</div>' +
-            '</div>'
-          : '') +
-
+        // Error box
         '<div id="pmt-errors" class="error-box" style="display:none"></div>' +
 
-        '<div class="form-actions-bar">' +
+        // Actions
+        '<div class="form-actions">' +
           '<button class="btn btn-ghost" id="btn-cancel-pmt">Batal</button>' +
-          '<button class="btn btn-primary" id="btn-post-pmt">&#10003; Post Pembayaran</button>' +
+          '<button class="btn btn-primary" id="btn-save-pmt">&#10003; Simpan Pembayaran</button>' +
         '</div>' +
 
-      '</div>' + // form-card
-      '</div>';   // debt-page
+      '</div>' +
+      '</div>';
 
-    // Bind events
-    document.getElementById('btn-back-detail').onclick   = function() { showDetail(_selectedDebtId); };
-    document.getElementById('btn-cancel-pmt').onclick    = function() { showDetail(_selectedDebtId); };
-    document.getElementById('btn-post-pmt').onclick      = function() { savePayment(); };
-    document.getElementById('pmt-account').onchange      = function() { _updateLedgerPreview(); };
-  }
+    // Bindings
+    var btnBack = document.getElementById('btn-back-detail');
+    if (btnBack) btnBack.onclick = function(){ showDetail(_selectedDebtId); };
 
-  // ── Payment helper: build ledger preview HTML ─────────────
-  function _buildLedgerPreview(principal, interest, admin, total, liabCOA, cashCOA) {
-    var entries = [];
-    var liabName = DB.COA.byCode(liabCOA) ? DB.COA.byCode(liabCOA).coa_name : 'Liabilitas';
-    var cashName = DB.COA.byCode(cashCOA) ? DB.COA.byCode(cashCOA).coa_name : 'Kas & Bank';
+    var btnCancel = document.getElementById('btn-cancel-pmt');
+    if (btnCancel) btnCancel.onclick = function(){ showDetail(_selectedDebtId); };
 
-    if (admin > 0)     entries.push({ dir:'Debit',  coa:'542', name:'Beban Administrasi Bank', amt: admin });
-    if (interest > 0)  entries.push({ dir:'Debit',  coa:'541', name:'Beban Bunga Pinjaman',    amt: interest });
-    if (principal > 0) entries.push({ dir:'Debit',  coa: liabCOA, name: liabName,              amt: principal });
-    if (total > 0)     entries.push({ dir:'Credit', coa: cashCOA, name: cashName,              amt: total });
+    var btnSave = document.getElementById('btn-save-pmt');
+    if (btnSave) btnSave.onclick = function(){ savePayment(); };
 
-    if (entries.length === 0) return '<div class="text-muted text-sm">Isi alokasi untuk melihat preview entry</div>';
-
-    return '<table class="table debt-table">' +
-      '<thead><tr><th>COA</th><th>Nama</th><th>Debit</th><th>Credit</th></tr></thead>' +
-      '<tbody>' +
-      entries.map(function(e) {
-        return '<tr>' +
-          '<td class="mono text-sm text-muted">' + e.coa + '</td>' +
-          '<td class="text-sm">' + e.name + '</td>' +
-          '<td class="text-right mono text-sm">' + (e.dir==='Debit'  ? Utils.formatIDR(e.amt) : '—') + '</td>' +
-          '<td class="text-right mono text-sm">' + (e.dir==='Credit' ? Utils.formatIDR(e.amt) : '—') + '</td>' +
-        '</tr>';
-      }).join('') +
-      '</tbody>' +
-    '</table>';
-  }
-
-  function _updateLedgerPreview() {
-    var total     = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
-    var admin     = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
-    var interest  = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
-    var principal = Math.max(0, total - admin - interest);
-    var acctSel   = document.getElementById('pmt-account');
-    var cashAcctId= acctSel ? acctSel.value : '';
-    var cashAcct  = cashAcctId ? DB.Accounts.byId(cashAcctId) : null;
-    var cashCOA   = cashAcct ? cashAcct.coa_code : '101';
-    var debt      = DB.DebtRegister.byId(_selectedDebtId);
-    var liabAcct  = debt ? DB.Accounts.byId(debt.account_id) : null;
-    var liabCOA   = liabAcct ? liabAcct.coa_code : '203';
-    var preview   = document.getElementById('pmt-ledger-preview');
-    if (preview) preview.innerHTML = _buildLedgerPreview(principal, interest, admin, total, liabCOA, cashCOA);
-  }
-
-  // ── Payment form event handlers ───────────────────────────
-  function onPmtChange()    { _updateLedgerPreview(); }
-
-  function onSchedChange() {
-    var schedId  = (document.getElementById('pmt-sched-id') || {}).value;
-    if (!schedId) return;
-    var sched    = DB.DebtSchedule.byId(schedId);
-    if (!sched)  return;
-    var total    = (sched.principal||0) + (sched.interest||0) + (sched.admin_fee||0) + (sched.penalty_fee||0);
-    var totalEl  = document.getElementById('pmt-total');
-    var adminEl  = document.getElementById('pmt-admin');
-    var intEl    = document.getElementById('pmt-interest');
-    var princEl  = document.getElementById('pmt-principal');
-    if (totalEl)  totalEl.value   = total;
-    if (adminEl)  adminEl.value   = (sched.admin_fee||0) + (sched.penalty_fee||0);
-    if (intEl)    intEl.value     = sched.interest || 0;
-    if (princEl)  princEl.value   = sched.principal || 0;
-    _syncAlloc();
-    _updateLedgerPreview();
-  }
-
-  function onTotalChange() {
-    _syncAlloc();
-    _updateLedgerPreview();
-    _updateCreditPreview();
-  }
-
-  function onAllocChange() {
-    _syncAlloc();
-    _updateLedgerPreview();
-    _updateCreditPreview();
-  }
-
-  function _syncAlloc() {
-    var total    = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
-    var admin    = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
-    var interest = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
-    var principal= Math.max(0, total - admin - interest);
-    var princEl  = document.getElementById('pmt-principal');
-    var totEl    = document.getElementById('pmt-alloc-total');
-    var chkEl    = document.getElementById('pmt-alloc-check');
-    if (princEl)  princEl.value = principal;
-    var allocSum = admin + interest + principal;
-    if (totEl)    totEl.textContent = Utils.formatIDR(allocSum);
-    if (chkEl) {
-      var balanced = Math.abs(allocSum - total) < 1;
-      chkEl.innerHTML = balanced
-        ? '<span class="text-green">&#10003; Balanced</span>'
-        : '<span class="text-red">&#9888; Selisih ' + Utils.formatIDR(Math.abs(allocSum-total)) + '</span>';
+    // Check-all binding
+    var checkAll = document.getElementById('pmt-check-all');
+    if (checkAll) {
+      checkAll.onchange = function() {
+        document.querySelectorAll('.pmt-sched-check').forEach(function(c){ c.checked = checkAll.checked; });
+        _updatePmtTotal();
+      };
     }
+
+    // Per-row checkbox binding
+    document.querySelectorAll('.pmt-sched-check').forEach(function(c){
+      c.onchange = _updatePmtTotal;
+    });
   }
 
-  function _updateCreditPreview() {
-    var debt     = DB.DebtRegister.byId(_selectedDebtId);
-    if (!debt || !debt.credit_limit) return;
-    var total    = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
-    var admin    = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
-    var interest = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
-    var principal= Math.max(0, total - admin - interest);
-    var delta    = debt.credit_limit_type === 'Full_Revolving' ? total : principal;
-    var after    = Math.min(debt.credit_limit, (debt.available_credit || 0) + delta);
-    var deltaEl  = document.getElementById('pmt-credit-delta');
-    var afterEl  = document.getElementById('pmt-credit-after');
-    if (deltaEl) deltaEl.textContent = '+ ' + Utils.formatIDR(delta);
-    if (afterEl) afterEl.innerHTML   = '<strong>' + Utils.formatIDR(after) + '</strong>';
+  function _updatePmtTotal() {
+    var checks = document.querySelectorAll('.pmt-sched-check:checked');
+    var total = 0;
+    checks.forEach(function(c){ total += parseFloat(c.getAttribute('data-amount')) || 0; });
+    var totalEl = document.getElementById('pmt-selected-total');
+    var countEl = document.getElementById('pmt-selected-count');
+    if (totalEl) totalEl.textContent = Utils.formatIDR(total);
+    if (countEl) countEl.textContent = checks.length;
   }
 
-  // ── Save Payment ──────────────────────────────────────────
+
   function savePayment() {
-    var debt     = DB.DebtRegister.byId(_selectedDebtId);
-    if (!debt)   return;
+    var debt = DB.DebtRegister.byId(_selectedDebtId);
+    if (!debt) return;
 
-    var date     = (document.getElementById('pmt-date')     || {}).value || '';
-    var accountId= (document.getElementById('pmt-account')  || {}).value || '';
-    var schedId  = (document.getElementById('pmt-sched-id') || {}).value || '';
-    var total    = parseFloat((document.getElementById('pmt-total')    || {}).value) || 0;
-    var admin    = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
-    var interest = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
-    var principal= Math.max(0, total - admin - interest);
-    var errBox   = document.getElementById('pmt-errors');
+    // Collect selected cicilan
+    var checks = document.querySelectorAll('.pmt-sched-check:checked');
+    if (checks.length === 0) {
+      Utils.toast('Pilih minimal satu cicilan', 'error');
+      return;
+    }
+
+    var date      = (document.getElementById('pmt-date')     || {}).value || null;
+    var accountId = (document.getElementById('pmt-account')  || {}).value || '';
+    var interest  = parseFloat((document.getElementById('pmt-interest') || {}).value) || 0;
+    var admin     = parseFloat((document.getElementById('pmt-admin')    || {}).value) || 0;
+    var notes     = (document.getElementById('pmt-notes')    || {}).value || '';
+    var errBox    = document.getElementById('pmt-errors');
 
     // Validation
     var errors = [];
-    if (!date)      errors.push('Tanggal wajib diisi');
     if (!accountId) errors.push('Rekening sumber wajib dipilih');
-    if (!total || total <= 0) errors.push('Total pembayaran harus lebih dari 0');
-    if (Math.abs((admin + interest + principal) - total) > 1) errors.push('Alokasi tidak seimbang dengan total');
 
     if (errors.length > 0) {
-      if (errBox) { errBox.style.display = 'block'; errBox.innerHTML = '<ul>' + errors.map(function(e){ return '<li>'+e+'</li>'; }).join('') + '</ul>'; }
+      if (errBox) { errBox.style.display='block'; errBox.innerHTML='<ul>'+errors.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul>'; }
       return;
     }
     if (errBox) errBox.style.display = 'none';
 
     var cashAcct = DB.Accounts.byId(accountId);
     var liabAcct = DB.Accounts.byId(debt.account_id);
-    var cashCOA  = cashAcct ? cashAcct.coa_code : '101';
-    var liabCOA  = liabAcct ? liabAcct.coa_code : '203';
-    var outBefore= debt.outstanding_principal || 0;
-    var outAfter = Math.max(0, outBefore - principal);
+    var cashCOA  = cashAcct ? (cashAcct.coa_code||'101') : '101';
+    var liabCOA  = liabAcct ? (liabAcct.coa_code||'203') : '203';
+    var txnDate  = date || Utils.today();
 
-    // ── Create ledger entries ─────────────────────────────
-    var txnIds = {};
+    // Collect schedule IDs and total
+    var schedIds = [];
+    var totalCicilan = 0;
+    checks.forEach(function(c){
+      schedIds.push(c.getAttribute('data-id'));
+      totalCicilan += parseFloat(c.getAttribute('data-amount')) || 0;
+    });
 
-    // 1. Debit Liability (pokok berkurang)
-    if (principal > 0) {
-      var t1 = Utils.newTxnId(date);
-      DB.Transactions.save({
-        txn_id: t1, txn_date: date, entry_date: Utils.today(),
-        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
-        account_id: accountId, counter_account_id: debt.account_id,
-        coa_code: liabCOA, type_id: 'TXN-08',
-        cp_id: debt.cp_id||null, amount: principal,
-        direction: 'Debit',
-        description: 'Bayar pokok — ' + debt.description + ' (' + debt.debt_id + ')',
-        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
-        created_by: 'User', period: Utils.toPeriod(date)
-      });
-      txnIds.principal = t1;
-    }
+    var totalPayment = totalCicilan + interest + admin;
+    var principal    = totalCicilan; // for Bundled, total_installment = principal+interest bundled
 
-    // 2. Debit Interest (beban bunga)
-    if (interest > 0) {
-      var t2 = Utils.newTxnId(date);
-      DB.Transactions.save({
-        txn_id: t2, txn_date: date, entry_date: Utils.today(),
-        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
-        account_id: accountId, counter_account_id: null,
-        coa_code: '541', type_id: 'TXN-02',
-        cp_id: debt.cp_id||null, amount: interest,
-        direction: 'Debit',
-        description: 'Beban bunga — ' + debt.description,
-        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
-        created_by: 'User', period: Utils.toPeriod(date)
-      });
-      txnIds.interest = t2;
-    }
-
-    // 3. Debit Admin/Denda
-    if (admin > 0) {
-      var t3 = Utils.newTxnId(date);
-      DB.Transactions.save({
-        txn_id: t3, txn_date: date, entry_date: Utils.today(),
-        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
-        account_id: accountId, counter_account_id: null,
-        coa_code: '543', type_id: 'TXN-02',
-        cp_id: debt.cp_id||null, amount: admin,
-        direction: 'Debit',
-        description: 'Admin fee/denda — ' + debt.description,
-        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
-        created_by: 'User', period: Utils.toPeriod(date)
-      });
-      txnIds.admin = t3;
-    }
-
-    // 4. Credit Cash (kas keluar)
-    var t4 = Utils.newTxnId(date);
+    // Create ONE cash out transaction for total payment
+    var txnCash = Utils.newTxnId(txnDate);
     DB.Transactions.save({
-      txn_id: t4, txn_date: date, entry_date: Utils.today(),
+      txn_id: txnCash, txn_date: txnDate, entry_date: Utils.today(),
       entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
       account_id: accountId, counter_account_id: debt.account_id,
       coa_code: cashCOA, type_id: 'TXN-08',
-      cp_id: debt.cp_id||null, amount: total,
+      cf_class: 'Debt', event_id: 'EVT-D04',
+      cp_id: debt.cp_id||null, amount: totalPayment,
       direction: 'Credit',
-      description: 'Kas keluar — bayar ' + debt.description + ' (pokok+bunga+admin)',
+      description: 'Bayar ' + schedIds.length + ' cicilan — ' + debt.description +
+        (notes ? ' | ' + notes : ''),
       reference_id: debt.debt_id, status: 'Posted', void_reason: null,
-      created_by: 'User', period: Utils.toPeriod(date)
+      created_by: 'User', period: Utils.toPeriod(txnDate)
     });
-    txnIds.cash = t4;
 
-    // ── Save debt payment record ─────────────────────────
-    var dpmt = {
-      dpmt_id:            _newDpmtId(),
-      debt_id:            debt.debt_id,
-      schedule_id:        schedId || (nextSched ? nextSched.schedule_id : null),
-      payment_date:       date,
-      total_paid:         total,
-      allocated_admin_fee:admin,
-      allocated_penalty:  0,
-      allocated_interest: interest,
-      allocated_principal:principal,
-      outstanding_before: outBefore,
-      outstanding_after:  outAfter,
-      txn_id_principal:   txnIds.principal || null,
-      txn_id_interest:    txnIds.interest  || null,
-      txn_id_admin:       txnIds.admin     || null,
-      txn_id_cash:        txnIds.cash,
-      account_id:         accountId,
-      notes:              null
-    };
-    DB.DebtPayments.save(dpmt);
-
-    // ── Mark schedule as paid ─────────────────────────────
-    var schedToMark = schedId || (schedules[0] ? schedules[0].schedule_id : null);
-    if (schedToMark) {
-      DB.DebtSchedule.markPaid(schedToMark, date, total, txnIds.cash);
+    // Interest entry if any
+    if (interest > 0) {
+      DB.Transactions.save({
+        txn_id: Utils.newTxnId(txnDate), txn_date: txnDate, entry_date: Utils.today(),
+        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
+        account_id: accountId, coa_code: '541', type_id: 'TXN-02',
+        cf_class: 'Debt', event_id: 'EVT-D04',
+        cp_id: debt.cp_id||null, amount: interest, direction: 'Debit',
+        description: 'Beban bunga — ' + debt.description,
+        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
+        created_by: 'User', period: Utils.toPeriod(txnDate)
+      });
     }
 
-    // ── Update debt register ──────────────────────────────
-    debt.outstanding_principal = outAfter;
-    if (debt.credit_limit) {
-      var delta = debt.credit_limit_type === 'Full_Revolving' ? total : principal;
-      debt.available_credit = Math.min(debt.credit_limit, (debt.available_credit||0) + delta);
+    // Admin fee entry if any
+    if (admin > 0) {
+      DB.Transactions.save({
+        txn_id: Utils.newTxnId(txnDate), txn_date: txnDate, entry_date: Utils.today(),
+        entity_id: debt.entity_id, bu_id: debt.bu_id, activity_id: debt.activity_id||null,
+        account_id: accountId, coa_code: '543', type_id: 'TXN-02',
+        cf_class: 'Debt', event_id: 'EVT-D04',
+        cp_id: debt.cp_id||null, amount: admin, direction: 'Debit',
+        description: 'Admin fee/denda — ' + debt.description,
+        reference_id: debt.debt_id, status: 'Posted', void_reason: null,
+        created_by: 'User', period: Utils.toPeriod(txnDate)
+      });
     }
-    // Update remaining installments
-    if (debt.remaining_installments > 0) debt.remaining_installments--;
-    if (outAfter <= 0) debt.status = 'Settled';
-    DB.DebtRegister.recalcOutstanding(debt.debt_id);
 
-    Utils.toast('Pembayaran berhasil diposting — ' + (Object.keys(txnIds).length) + ' ledger entry dibuat');
+    // Mark each selected schedule as Paid and save payment record
+    var outBefore = debt.billing_method === 'Bundled_Unknown'
+      ? DB.DebtSchedule.byDebt(debt.debt_id).filter(function(s){return s.status!=='Paid';}).length * (debt.monthly_installment||0)
+      : (debt.outstanding_principal||0);
+
+    schedIds.forEach(function(schedId, i) {
+      var sched = DB.DebtSchedule.byId(schedId);
+      if (!sched) return;
+
+      // Mark paid
+      DB.DebtSchedule.save(Object.assign({}, sched, {
+        status: 'Paid',
+        payment_date: date || null,
+        paid_amount: sched.total_installment,
+        txn_id: txnCash
+      }));
+
+      // Save payment record per cicilan
+      DB.DebtPayments.save({
+        dpmt_id:             _newDpmtId(),
+        debt_id:             debt.debt_id,
+        schedule_id:         schedId,
+        payment_date:        date || null,
+        total_paid:          sched.total_installment,
+        allocated_principal: sched.principal || sched.total_installment,
+        allocated_interest:  sched.interest  || 0,
+        allocated_admin_fee: sched.admin_fee || 0,
+        allocated_penalty:   0,
+        outstanding_before:  outBefore,
+        outstanding_after:   Math.max(0, outBefore - sched.total_installment),
+        txn_id_cash:         txnCash,
+        account_id:          accountId,
+        notes:               notes || null
+      });
+
+      outBefore = Math.max(0, outBefore - sched.total_installment);
+    });
+
+    // Update debt register
+    var remaining = DB.DebtSchedule.byDebt(debt.debt_id).filter(function(s){return s.status!=='Paid';});
+    var newOutstanding = debt.billing_method === 'Bundled_Unknown'
+      ? remaining.length * (debt.monthly_installment||0)
+      : remaining.reduce(function(s,x){return s+(x.principal||0);},0);
+
+    DB.DebtRegister.save(Object.assign({}, debt, {
+      remaining_installments: remaining.length,
+      outstanding_principal:  newOutstanding,
+      status: remaining.length === 0 ? 'Settled' : debt.status
+    }));
+
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+      SupabaseSync.pushNow('fos_debt_schedule');
+      SupabaseSync.pushNow('fos_debt_register');
+    }
+
+    Utils.toast(schedIds.length + ' cicilan berhasil dicatat — 1 transaksi dibuat');
     showDetail(_selectedDebtId);
   }
+
 
 
   // ══════════════════════════════════════════════════════════
