@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.5 Edit Account COA field build:20260721012113 -->
+<!-- Finance OS v5.14.5 COA edit + debt sync re-enabled build:20260721023258 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4822,12 +4822,9 @@ const SupabaseSync = (() => {
 
   // ── Pull all data from Supabase → localStorage ──────────────
   async function pullFromSupabase() {
-    // Pull all transaction tables via TABLE_MAP
-    // NOTE: debt tables (fos_debt_register, fos_debt_schedule) are push-only
-    // They are NOT pulled from Supabase to prevent stale data overwrites
-    var SKIP_PULL_KEYS = ['fos_debt_register', 'fos_debt_schedule', 'fos_debt_obligations'];
+    // Pull all transaction + debt tables via TABLE_MAP
+    var DEBT_KEYS = ['fos_debt_register', 'fos_debt_schedule', 'fos_debt_obligations'];
     for (var lsKey in TABLE_MAP) {
-      if (SKIP_PULL_KEYS.indexOf(lsKey) >= 0) continue; // Skip debt tables on pull
       var map  = TABLE_MAP[lsKey];
       try {
         var rows = await _api('GET', map.table + '?select=data,updated_at&order=updated_at.asc', null);
@@ -4835,25 +4832,11 @@ const SupabaseSync = (() => {
           // Filter out soft-deleted records (_deleted: true)
           var records = rows.map(function(r) { return r.data; })
                            .filter(function(r) { return !r._deleted; });
-          // For debt tables: merge instead of overwrite
-          // Keep local records that are newer than what Supabase has
-          if (lsKey === 'fos_debt_schedule' || lsKey === 'fos_debt_register') {
-            var localRaw = localStorage.getItem(lsKey);
-            var localRecs = localRaw ? JSON.parse(localRaw) : [];
-            var idKey = map.idKey;
-            var localMap = {};
-            localRecs.forEach(function(r){ localMap[r[idKey]] = r; });
-            // Merge: Supabase records update local, but local-only records are kept
-            var merged = records.slice();
-            localRecs.forEach(function(lr){
-              if (!lr._deleted && !merged.find(function(r){ return r[idKey] === lr[idKey]; })) {
-                merged.push(lr);
-              }
-            });
-            localStorage.setItem(lsKey, JSON.stringify(merged));
-          } else {
-            localStorage.setItem(lsKey, JSON.stringify(records));
-          }
+          localStorage.setItem(lsKey, JSON.stringify(records));
+        } else if (rows && rows.length === 0 && DEBT_KEYS.indexOf(lsKey) < 0) {
+          // Only clear non-debt tables if Supabase is empty
+          // Debt tables preserve local data if Supabase is empty
+          localStorage.setItem(lsKey, JSON.stringify([]));
         }
       } catch(e) {
         console.warn('[SupabaseSync] Pull failed for', lsKey, ':', e.message);
