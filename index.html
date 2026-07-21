@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.4 fix onPmtChange build:20260720092259 -->
+<!-- Finance OS v5.14.5 Edit Account COA field build:20260721012113 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -14424,12 +14424,22 @@ const Masters = (() => {
 
   function editAccount(id) {
     const a = DB.Accounts.byId(id); if (!a) return;
+    // Build COA options from DB
+    const coaOpts = DB.COA.all().map(function(c){
+      return { val: c.coa_code, label: c.coa_code + ' — ' + c.coa_name };
+    });
     _showModal('Edit Akun — '+id, [
       { id:'ac-name',    label:'Nama Akun',  type:'text',   value:a.account_name },
       { id:'ac-type',    label:'Tipe',       type:'select', options:['Bank','Cash','E-Wallet','Credit','Loan','Platform'], value:a.account_type },
+      { id:'ac-coa',     label:'COA',        type:'select', options:coaOpts, value:a.coa_code },
       { id:'ac-opening', label:'Saldo Awal', type:'number', value:a.opening_balance||0 }
     ], function(vals) {
-      DB.Accounts.save({ ...a, account_name:vals['ac-name'], account_type:vals['ac-type'], opening_balance:parseFloat(vals['ac-opening'])||0 });
+      DB.Accounts.save({ ...a,
+        account_name:    vals['ac-name'],
+        account_type:    vals['ac-type'],
+        coa_code:        vals['ac-coa'] || a.coa_code,
+        opening_balance: parseFloat(vals['ac-opening'])||0
+      });
     });
   }
 
