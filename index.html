@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.7 Edit Account Entity+COA fields build:20260721062100 -->
+<!-- Finance OS v5.14.8 Treasury Role metadata build:20260721063334 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -14368,7 +14368,7 @@ const Masters = (() => {
     const list = DB.Accounts.all();
     return _masterHeader('Akun (Physical Accounts)', 'Masters.addAccount()') +
       '<table class="table"><thead><tr><th>ID</th><th>Nama Akun</th><th>Entity</th><th>Tipe</th><th>COA</th><th>Saldo Awal</th><th>Status</th><th>Aksi</th></tr></thead><tbody>' +
-      (list.length===0 ? '<tr><td colspan="8" class="text-center text-muted" style="padding:1.5rem">Belum ada data</td></tr>' :
+      (list.length===0 ? '<tr><td colspan="9" class="text-center text-muted" style="padding:1.5rem">Belum ada data</td></tr>' :
       list.map(function(a){
         const ent = DB.Entities.byId(a.entity_id);
         const coa = DB.COA.byCode(a.coa_code);
@@ -14378,6 +14378,7 @@ const Masters = (() => {
           '<td class="text-sm">' + (ent?ent.entity_name:a.entity_id) + '</td>' +
           '<td><span class="badge badge-gray">' + a.account_type + '</span></td>' +
           '<td class="text-sm">' + a.coa_code + (coa?' '+coa.coa_name:'') + '</td>' +
+          '<td class="text-sm text-muted">' + (a.treasury_role ? a.treasury_role.replace('_',' ') : '—') + '</td>' +
           '<td class="text-right mono text-sm">' + Utils.formatIDR(a.opening_balance||0) + '</td>' +
           '<td>' + Utils.statusBadge(a.status) + '</td>' +
           '<td><div class="row-actions">' +
@@ -14398,6 +14399,13 @@ const Masters = (() => {
       { id:'ac-name',    label:'Nama Akun',   type:'text',   placeholder:'Contoh: BNI Operasional' },
       { id:'ac-type',    label:'Tipe',        type:'select', options:['Bank','Cash','E-Wallet','Credit','Loan','Platform'] },
       { id:'ac-coa',     label:'COA Code',    type:'select', options:coas.map(function(c){ return {val:c.coa_code,label:c.coa_code+' — '+c.coa_name}; }) },
+      { id:'ac-role',    label:'Treasury Role', type:'select', options:[
+      {val:'operational',     label:'Operational — rekening utama operasional'},
+      {val:'payment_transit', label:'Payment Transit — Flip, Allo Bank, Sea Bank'},
+      {val:'credit_facility', label:'Credit Facility — CC, Paylater, Pinjaman'},
+      {val:'savings',         label:'Savings — tabungan/deposito'},
+      {val:'petty_cash',      label:'Petty Cash — kas kecil operasional'}
+    ] },
       { id:'ac-opening', label:'Saldo Awal',  type:'number', placeholder:'0', hint:'Saldo per tanggal go-live' }
     ], function(vals) {
       const errors = [];
@@ -14405,7 +14413,7 @@ const Masters = (() => {
       if (!vals['ac-name'])   errors.push('Nama akun wajib diisi');
       if (!vals['ac-coa'])    errors.push('COA wajib dipilih');
       if (errors.length) return errors;
-      DB.Accounts.save({ account_id:Utils.newAccountId(), entity_id:vals['ac-entity'], account_name:vals['ac-name'], account_type:vals['ac-type'], coa_code:vals['ac-coa'], currency:'IDR', opening_balance:parseFloat(vals['ac-opening'])||0, status:'Active' });
+      DB.Accounts.save({ account_id:Utils.newAccountId(), entity_id:vals['ac-entity'], account_name:vals['ac-name'], account_type:vals['ac-type'], coa_code:vals['ac-coa'], currency:'IDR', treasury_role:vals['ac-role']||null, opening_balance:parseFloat(vals['ac-opening'])||0, status:'Active' });
     });
   }
 
@@ -14421,18 +14429,28 @@ const Masters = (() => {
     ].concat(DB.Entities.all().map(function(e){
       return { val: e.entity_id, label: e.entity_name };
     }));
+    const roleOpts = [
+      {val:'',               label:'— Tidak ditentukan —'},
+      {val:'operational',     label:'Operational'},
+      {val:'payment_transit', label:'Payment Transit'},
+      {val:'credit_facility', label:'Credit Facility'},
+      {val:'savings',         label:'Savings'},
+      {val:'petty_cash',      label:'Petty Cash'}
+    ];
     _showModal('Edit Akun — '+id, [
-      { id:'ac-name',    label:'Nama Akun',  type:'text',   value:a.account_name },
-      { id:'ac-entity',  label:'Entity',     type:'select', options:entityOpts, value:a.entity_id||'' },
-      { id:'ac-type',    label:'Tipe',       type:'select', options:['Bank','Cash','E-Wallet','Credit','Loan','Platform'], value:a.account_type },
-      { id:'ac-coa',     label:'COA',        type:'select', options:coaOpts, value:a.coa_code },
-      { id:'ac-opening', label:'Saldo Awal', type:'number', value:a.opening_balance||0 }
+      { id:'ac-name',    label:'Nama Akun',     type:'text',   value:a.account_name },
+      { id:'ac-entity',  label:'Entity',        type:'select', options:entityOpts, value:a.entity_id||'' },
+      { id:'ac-type',    label:'Tipe',          type:'select', options:['Bank','Cash','E-Wallet','Credit','Loan','Platform'], value:a.account_type },
+      { id:'ac-coa',     label:'COA',           type:'select', options:coaOpts, value:a.coa_code },
+      { id:'ac-role',    label:'Treasury Role', type:'select', options:roleOpts, value:a.treasury_role||'' },
+      { id:'ac-opening', label:'Saldo Awal',    type:'number', value:a.opening_balance||0 }
     ], function(vals) {
       DB.Accounts.save({ ...a,
         account_name:    vals['ac-name'],
         entity_id:       vals['ac-entity'] || null,
         account_type:    vals['ac-type'],
         coa_code:        vals['ac-coa'] || a.coa_code,
+        treasury_role:   vals['ac-role'] || null,
         opening_balance: parseFloat(vals['ac-opening'])||0
       });
     });
