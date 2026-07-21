@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.8 Treasury Role metadata build:20260721063334 -->
+<!-- Finance OS v5.14.8 Treasury Role column fix build:20260721064102 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -14367,8 +14367,8 @@ const Masters = (() => {
   function _renderAccount() {
     const list = DB.Accounts.all();
     return _masterHeader('Akun (Physical Accounts)', 'Masters.addAccount()') +
-      '<table class="table"><thead><tr><th>ID</th><th>Nama Akun</th><th>Entity</th><th>Tipe</th><th>COA</th><th>Saldo Awal</th><th>Status</th><th>Aksi</th></tr></thead><tbody>' +
-      (list.length===0 ? '<tr><td colspan="9" class="text-center text-muted" style="padding:1.5rem">Belum ada data</td></tr>' :
+      '<table class="table"><thead><tr><th>ID</th><th>Nama Akun</th><th>Entity</th><th>Tipe</th><th>COA</th><th>Treasury Role</th><th>Saldo Awal</th><th>Status</th><th>Aksi</th></tr></thead><tbody>' +
+      (list.length===0 ? '<tr><td colspan="10" class="text-center text-muted" style="padding:1.5rem">Belum ada data</td></tr>' :
       list.map(function(a){
         const ent = DB.Entities.byId(a.entity_id);
         const coa = DB.COA.byCode(a.coa_code);
