@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.5 COA edit + debt sync re-enabled build:20260721023258 -->
+<!-- Finance OS v5.14.6 Pull always replace localStorage build:20260721035837 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4832,11 +4832,15 @@ const SupabaseSync = (() => {
           // Filter out soft-deleted records (_deleted: true)
           var records = rows.map(function(r) { return r.data; })
                            .filter(function(r) { return !r._deleted; });
+          // Always replace localStorage with Supabase data
+          // This ensures deleted records on Supabase are also removed locally
           localStorage.setItem(lsKey, JSON.stringify(records));
-        } else if (rows && rows.length === 0 && DEBT_KEYS.indexOf(lsKey) < 0) {
-          // Only clear non-debt tables if Supabase is empty
-          // Debt tables preserve local data if Supabase is empty
-          localStorage.setItem(lsKey, JSON.stringify([]));
+        } else if (rows && rows.length === 0) {
+          // Supabase is empty - only clear if not a debt table
+          // Debt tables keep local data when Supabase is empty (first-time push not yet done)
+          if (DEBT_KEYS.indexOf(lsKey) < 0) {
+            localStorage.setItem(lsKey, JSON.stringify([]));
+          }
         }
       } catch(e) {
         console.warn('[SupabaseSync] Pull failed for', lsKey, ':', e.message);
