@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.6 Pull always replace localStorage build:20260721035837 -->
+<!-- Finance OS v5.14.7 Edit Account Entity+COA fields build:20260721062100 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -14415,14 +14415,22 @@ const Masters = (() => {
     const coaOpts = DB.COA.all().map(function(c){
       return { val: c.coa_code, label: c.coa_code + ' — ' + c.coa_name };
     });
+    // Build Entity options
+    const entityOpts = [
+      { val: '', label: '— Tanpa Entity —' }
+    ].concat(DB.Entities.all().map(function(e){
+      return { val: e.entity_id, label: e.entity_name };
+    }));
     _showModal('Edit Akun — '+id, [
       { id:'ac-name',    label:'Nama Akun',  type:'text',   value:a.account_name },
+      { id:'ac-entity',  label:'Entity',     type:'select', options:entityOpts, value:a.entity_id||'' },
       { id:'ac-type',    label:'Tipe',       type:'select', options:['Bank','Cash','E-Wallet','Credit','Loan','Platform'], value:a.account_type },
       { id:'ac-coa',     label:'COA',        type:'select', options:coaOpts, value:a.coa_code },
       { id:'ac-opening', label:'Saldo Awal', type:'number', value:a.opening_balance||0 }
     ], function(vals) {
       DB.Accounts.save({ ...a,
         account_name:    vals['ac-name'],
+        entity_id:       vals['ac-entity'] || null,
         account_type:    vals['ac-type'],
         coa_code:        vals['ac-coa'] || a.coa_code,
         opening_balance: parseFloat(vals['ac-opening'])||0
