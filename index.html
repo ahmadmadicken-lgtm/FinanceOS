@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.8 Treasury Role column fix build:20260721064102 -->
+<!-- Finance OS v5.14.9 Edit Delete Payment History build:20260722052832 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -10745,7 +10745,7 @@ const DebtModule = (() => {
                 '<th>ID</th><th>Tanggal</th><th class="text-right">Total Bayar</th>' +
                 '<th class="text-right">Pokok</th><th class="text-right">Bunga</th>' +
                 '<th class="text-right">Admin/Denda</th>' +
-                '<th class="text-right">Saldo Setelah</th><th>Rekening</th>' +
+                '<th class="text-right">Saldo Setelah</th><th>Rekening</th><th>Aksi</th>' +
               '</tr></thead>' +
               '<tbody>' +
               payments.map(function(p) {
@@ -10759,6 +10759,10 @@ const DebtModule = (() => {
                   '<td class="text-right mono text-sm text-yellow">' + Utils.formatIDR((p.allocated_admin_fee||0)+(p.allocated_penalty||0)) + '</td>' +
                   '<td class="text-right mono text-sm text-muted">' + Utils.formatIDR(p.outstanding_after||0) + '</td>' +
                   '<td class="text-sm">' + (acctP ? acctP.account_name : '—') + '</td>' +
+                  '<td><div class="row-actions">' +
+                    '<button class="btn-action text-blue" data-pmt-id="' + p.dpmt_id + '" data-action="edit-pmt" title="Edit">&#9998;</button>' +
+                    '<button class="btn-action text-red" data-pmt-id="' + p.dpmt_id + '" data-action="delete-pmt" title="Hapus">&#128465;</button>' +
+                  '</div></td>' +
                 '</tr>';
               }).join('') +
               '</tbody>' +
@@ -10806,6 +10810,14 @@ const DebtModule = (() => {
     var btnEdit  = document.getElementById('btn-edit-debt');
     if (btnEdit)  btnEdit.onclick  = function() { showEditFacility(_selectedDebtId); };
     if (btnHapus) btnHapus.onclick = function() { _deleteDebt(_selectedDebtId); };
+
+    // Payment history edit/delete bindings
+    document.querySelectorAll('[data-action="edit-pmt"]').forEach(function(btn){
+      btn.onclick = function(){ _editPayment(btn.getAttribute('data-pmt-id'), _selectedDebtId); };
+    });
+    document.querySelectorAll('[data-action="delete-pmt"]').forEach(function(btn){
+      btn.onclick = function(){ _deletePayment(btn.getAttribute('data-pmt-id'), _selectedDebtId); };
+    });
 
     // Check-all binding for inline checkboxes
     var checkAll = document.getElementById('bulk-check-all-inline');
@@ -11462,6 +11474,125 @@ const DebtModule = (() => {
   }
 
 
+  // ── Edit / Delete Payment ────────────────────────────────
+  function _editPayment(dpmtId, debtId) {
+    var pmt = DB.DebtPayments.all().find(function(p){ return p.dpmt_id === dpmtId; });
+    if (!pmt) { Utils.toast('Pembayaran tidak ditemukan', 'error'); return; }
+
+    var allAccts = DB.Accounts.all().filter(function(a){ return a.status === 'Active'; });
+    var acctOpts = allAccts.map(function(a){
+      return { val: a.account_id, label: a.account_name };
+    });
+
+    // Show inline edit form below the table
+    var existing = document.querySelector('.pmt-edit-form');
+    if (existing) existing.remove();
+
+    var form = document.createElement('div');
+    form.className = 'pmt-edit-form card';
+    form.style.cssText = 'margin-top:1rem;padding:1.25rem';
+    form.innerHTML =
+      '<div class="form-section-title" style="margin-bottom:1rem">&#9998; Edit Pembayaran — ' + dpmtId + '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group">' +
+          '<label>Tanggal Pembayaran</label>' +
+          '<input class="form-input" type="date" id="epmt-date" value="' + (pmt.payment_date||'') + '">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label>Rekening Sumber</label>' +
+          '<select class="form-input" id="epmt-account">' +
+            acctOpts.map(function(o){
+              return '<option value="' + o.val + '"' + (pmt.account_id === o.val ? ' selected' : '') + '>' + o.label + '</option>';
+            }).join('') +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group">' +
+          '<label>Catatan</label>' +
+          '<input class="form-input" type="text" id="epmt-notes" value="' + (pmt.notes||'') + '" placeholder="Opsional">' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-actions" style="margin-top:1rem">' +
+        '<button class="btn btn-ghost" id="epmt-cancel">Batal</button>' +
+        '<button class="btn btn-primary" id="epmt-save">&#10003; Simpan</button>' +
+      '</div>';
+
+    document.getElementById('page-body').appendChild(form);
+    form.scrollIntoView({ behavior: 'smooth' });
+
+    document.getElementById('epmt-cancel').onclick = function(){ form.remove(); };
+    document.getElementById('epmt-save').onclick = function(){
+      var newDate    = document.getElementById('epmt-date').value;
+      var newAcct    = document.getElementById('epmt-account').value;
+      var newNotes   = document.getElementById('epmt-notes').value;
+
+      // Update payment record
+      var updatedPmt = Object.assign({}, pmt, {
+        payment_date: newDate || pmt.payment_date,
+        account_id:   newAcct || pmt.account_id,
+        notes:        newNotes
+      });
+      DB.DebtPayments.save(updatedPmt);
+
+      // Update schedule payment_date
+      var sched = DB.DebtSchedule.byId(pmt.schedule_id);
+      if (sched) {
+        DB.DebtSchedule.save(Object.assign({}, sched, { payment_date: newDate || sched.payment_date }));
+      }
+
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+        SupabaseSync.pushNow('fos_debt_payments');
+        SupabaseSync.pushNow('fos_debt_schedule');
+      }
+
+      Utils.toast('Pembayaran berhasil diupdate');
+      form.remove();
+      showDetail(debtId);
+    };
+  }
+
+  function _deletePayment(dpmtId, debtId) {
+    Utils.confirm('Hapus pembayaran ini? Status cicilan akan dikembalikan ke Scheduled.', async function(){
+      var pmt = DB.DebtPayments.all().find(function(p){ return p.dpmt_id === dpmtId; });
+      if (!pmt) return;
+
+      // Revert schedule to Scheduled
+      var sched = DB.DebtSchedule.byId(pmt.schedule_id);
+      if (sched) {
+        DB.DebtSchedule.save(Object.assign({}, sched, {
+          status: 'Scheduled', payment_date: null, paid_amount: null, txn_id: null
+        }));
+      }
+
+      // Remove payment record
+      var pmts = DB.DebtPayments.all().filter(function(p){ return p.dpmt_id !== dpmtId; });
+      localStorage.setItem('fos_debt_payments', JSON.stringify(pmts));
+
+      // Recalculate outstanding
+      var debt = DB.DebtRegister.byId(debtId);
+      if (debt) {
+        var unpaid = DB.DebtSchedule.byDebt(debtId).filter(function(s){ return s.status !== 'Paid'; });
+        DB.DebtRegister.save(Object.assign({}, debt, {
+          remaining_installments: unpaid.length,
+          outstanding_principal:  unpaid.length * (debt.monthly_installment || 0)
+        }));
+      }
+
+      // Tombstone payment in Supabase
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
+        await SupabaseSync.deleteRecord('fos_debt_payments', 'dpmt_id', dpmtId);
+      }
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+        SupabaseSync.pushNow('fos_debt_schedule');
+        SupabaseSync.pushNow('fos_debt_register');
+      }
+
+      Utils.toast('Pembayaran berhasil dihapus');
+      showDetail(debtId);
+    });
+  }
+
   // ── Edit Facility ─────────────────────────────────────────
   function showEditFacility(debtId) {
     var debt = DB.DebtRegister.byId(debtId);
@@ -11700,7 +11831,8 @@ const DebtModule = (() => {
     _renderObligationForm, _onObTypeChange, _saveObligation,
     showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
     showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
-    showEditFacility, _saveEditFacility
+    showEditFacility, _saveEditFacility,
+    _editPayment, _deletePayment
   };
 
 })();
