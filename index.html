@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.9 Edit Delete Payment History build:20260722052832 -->
+<!-- Finance OS v5.14.10 Revolving Parent+Draw model build:20260722093813 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -9757,11 +9757,22 @@ const DebtModule = (() => {
         ? '<div class="debt-card" style="margin-top:1rem">' +
             '<div class="debt-card-title">Komposisi Utang</div>' +
             '<div class="debt-composition">' +
-            active.map(function(d) {
+            active.filter(function(d){ return d.facility_type !== 'revolving_draw'; }).map(function(d) {
               var pct = summary.total_outstanding > 0
                 ? Math.round((d.outstanding_principal || 0) / summary.total_outstanding * 100)
                 : 0;
               var acct = DB.Accounts.byId(d.account_id);
+              // For revolving_parent, show draws underneath
+              var drawsHtml = '';
+              if (d.facility_type === 'revolving_parent') {
+                var draws = DB.DebtRegister.all().filter(function(x){ return x.parent_facility_id === d.debt_id; });
+                drawsHtml = draws.map(function(dr){
+                  return '<div class="debt-comp-row" style="padding-left:1.5rem;font-size:.8rem;opacity:.8">' +
+                    '<span>' + dr.description + '</span>' +
+                    '<span class="mono">' + Utils.formatIDR(dr.outstanding_principal||0) + '</span>' +
+                  '</div>';
+                }).join('');
+              }
               return '<div class="debt-comp-row">' +
                 '<div class="debt-comp-label">' + d.description +
                   (acct ? ' <span class="text-muted text-xs">(' + acct.account_name + ')</span>' : '') +
@@ -9771,7 +9782,7 @@ const DebtModule = (() => {
                 '</div>' +
                 '<div class="debt-comp-val">' + Utils.formatIDR(d.outstanding_principal || 0) + '</div>' +
                 '<div class="debt-comp-pct text-muted">' + pct + '%</div>' +
-              '</div>';
+              '</div>' + drawsHtml;
             }).join('') +
             '</div>' +
           '</div>'
@@ -10061,6 +10072,28 @@ const DebtModule = (() => {
         // ── Section 1: Klasifikasi ──────────────────────────
         '<div class="form-section">' +
           '<div class="form-section-title">1 — Klasifikasi</div>' +
+
+          // Facility type selector
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Tipe Fasilitas <span class="required">*</span></label>' +
+              '<select class="form-input" id="df-facility-type" onchange="DebtModule.onFacilityTypeChange()">' +
+                '<option value="installment">Installment — KTA, cicilan tetap</option>' +
+                '<option value="revolving_parent">Revolving Parent — buat fasilitas induk (Allo Paylater, Shopee Pinjam)</option>' +
+                '<option value="revolving_draw">Revolving Draw — tarik dari fasilitas induk</option>' +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group" id="df-parent-group" style="display:none">' +
+              '<label>Fasilitas Induk</label>' +
+              '<select class="form-input" id="df-parent-id">' +
+                '<option value="">— Pilih Fasilitas Induk —</option>' +
+                DB.DebtRegister.all().filter(function(d){ return d.facility_type === "revolving_parent"; }).map(function(d){
+                  return "<option value=\"" + d.debt_id + "\">" + d.description + "</option>";
+                }).join("") +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+
           '<div class="form-row">' +
             '<div class="form-group">' +
               '<label>Entity <span class="required">*</span></label>' +
@@ -10152,10 +10185,17 @@ const DebtModule = (() => {
           '<div class="form-section-title">3 — Posisi Keuangan</div>' +
           '<div class="form-row">' +
             '<div class="form-group" id="df-limit-group">' +
-              '<label>Credit Limit</label>' +
-              '<input class="form-input" type="number" id="df-limit" placeholder="0">' +
-              '<small class="form-hint">Untuk kartu kredit dan BNPL</small>' +
+              '<label>Credit Limit (Rp)</label>' +
+              '<input class="form-input" type="number" id="df-limit" placeholder="0" oninput="DebtModule.onAmountChange()">' +
+              '<small class="form-hint">Total limit untuk fasilitas revolving</small>' +
             '</div>' +
+            '<div class="form-group" id="df-available-group">' +
+              '<label>Available Credit (Rp)</label>' +
+              '<input class="form-input" type="number" id="df-available" placeholder="0">' +
+              '<small class="form-hint">Sisa limit tersedia — update manual dari aplikasi</small>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-row" id="df-draw-fields">' +
             '<div class="form-group">' +
               '<label>Jumlah Awal / Pokok Pinjaman <span class="required">*</span></label>' +
               '<input class="form-input" type="number" id="df-original" placeholder="0" oninput="DebtModule.onAmountChange()">' +
@@ -10204,7 +10244,7 @@ const DebtModule = (() => {
         '</div>' +
 
         // ── Section 4: Jadwal ───────────────────────────────
-        '<div class="form-section">' +
+        '<div class="form-section" id="df-jadwal-section">' +
           '<div class="form-section-title">4 — Jadwal</div>' +
           '<div class="form-row">' +
             '<div class="form-group">' +
@@ -10301,7 +10341,33 @@ const DebtModule = (() => {
     }
   }
 
-  function onAmountChange() {
+    function onFacilityTypeChange() {
+    var type = (document.getElementById('df-facility-type') || {}).value || 'installment';
+
+    // Show/hide parent facility selector
+    var parentGroup = document.getElementById('df-parent-group');
+    if (parentGroup) parentGroup.style.display = type === 'revolving_draw' ? '' : 'none';
+
+    // For revolving_parent: show credit limit + available, hide draw fields
+    var drawFields = document.getElementById('df-draw-fields');
+    var sectionJadwal = document.getElementById('df-jadwal-section');
+    var availGroup = document.getElementById('df-available-group');
+    var limitGroup = document.getElementById('df-limit-group');
+
+    if (type === 'revolving_parent') {
+      if (drawFields)    drawFields.style.display    = 'none';
+      if (sectionJadwal) sectionJadwal.style.display = 'none';
+      if (availGroup)    availGroup.style.display    = '';
+      if (limitGroup)    limitGroup.style.display    = '';
+    } else {
+      if (drawFields)    drawFields.style.display    = '';
+      if (sectionJadwal) sectionJadwal.style.display = '';
+      if (availGroup)    availGroup.style.display    = 'none';
+      if (limitGroup)    limitGroup.style.display    = type === 'revolving_draw' ? 'none' : 'none';
+    }
+  }
+
+function onAmountChange() {
     var orig     = parseFloat((document.getElementById('df-original')  || {}).value) || 0;
     var monthly  = parseFloat((document.getElementById('df-monthly')   || {}).value) || 0;
     var tenor    = parseInt((document.getElementById('df-tenor')       || {}).value) || 0;
@@ -10339,6 +10405,9 @@ const DebtModule = (() => {
     var rate     = parseFloat((document.getElementById('df-rate')          || {}).value) || 0;
     var tenor    = parseInt((document.getElementById('df-tenor')           || {}).value) || 0;
     var intType  = (document.getElementById('df-interest-type') || {}).value || 'None';
+    var facilityType  = (document.getElementById('df-facility-type') || {}).value || 'installment';
+    var parentId      = (document.getElementById('df-parent-id')     || {}).value || null;
+    var availCredit   = parseFloat((document.getElementById('df-available') || {}).value) || 0;
     var billing  = (document.getElementById('df-billing')       || {}).value || 'Bundled_Unknown';
     var hint     = document.getElementById('df-monthly-hint');
     var monthlyEl= document.getElementById('df-monthly');
@@ -11455,6 +11524,9 @@ const DebtModule = (() => {
       original_amount:       amount,
       outstanding_principal: outstanding,
       disbursed_amount:      disbursed || original,
+      facility_type:         facilityType || 'installment',
+      parent_facility_id:    parentId || null,
+      available_credit:      availCredit || 0,
       interest_rate:         rate,
       interest_type:         rate > 0 ? 'Flat' : 'None',
       billing_method:        type === 'Revolving' ? 'Revolving' : 'Fixed_Monthly',
@@ -11832,7 +11904,8 @@ const DebtModule = (() => {
     showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
     showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
     showEditFacility, _saveEditFacility,
-    _editPayment, _deletePayment
+    _editPayment, _deletePayment,
+    onFacilityTypeChange
   };
 
 })();
