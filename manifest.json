@@ -2,9 +2,9 @@
   "name": "Finance OS",
   "short_name": "Finance OS",
   "description": "Finance Operating System — Kelola keuangan bisnis dan personal",
-  "start_url": "/FinanceOS/",
+  "start_url": "/FinanceOS/app.html",
   "scope": "/FinanceOS/",
-  "display": "standalone",
+  "display": "browser",
   "orientation": "portrait-primary",
   "background_color": "#0d1117",
   "theme_color": "#0d1117",
@@ -23,19 +23,5 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["finance", "business", "productivity"],
-  "shortcuts": [
-    {
-      "name": "Transaksi Baru",
-      "short_name": "Transaksi",
-      "url": "/FinanceOS/?nav=transactions",
-      "description": "Buka modul transaksi"
-    },
-    {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "url": "/FinanceOS/?nav=dashboard",
-      "description": "Lihat dashboard keuangan"
-    }
-  ]
+  "categories": ["finance", "business", "productivity"]
 }
