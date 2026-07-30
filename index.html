@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.22 Piutang Receivables _deleted tombstone fix build:20260730060000 -->
+<!-- Finance OS v5.14.23 Piutang schedule push + delete fix + cicilan input mode + accounts sync build:20260730070000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -7105,11 +7105,23 @@ const Receivables = (() => {
           // ── SECTION 4: Bunga & Tenor (Loan only — hidden for Invoice) ──
           '<div class="form-section" id="nr-section-bunga" style="display:none">' +
             '<div class="form-section-title">Bunga & Tenor (Flat Rate)</div>' +
+            '<div style="margin-bottom:.75rem">' +
+              '<label style="font-size:.75rem;color:var(--text-muted)">Mode Input:</label>' +
+              '<div style="display:flex;gap:.5rem;margin-top:.25rem">' +
+                '<button type="button" id="nr-mode-rate" class="btn btn-primary btn-sm" onclick="Receivables.setInputMode(\'rate\')" style="font-size:.75rem">Input % Bunga</button>' +
+                '<button type="button" id="nr-mode-cicilan" class="btn btn-ghost btn-sm" onclick="Receivables.setInputMode(\'cicilan\')" style="font-size:.75rem">Input Jumlah Cicilan</button>' +
+              '</div>' +
+            '</div>' +
             '<div class="form-row">' +
-              '<div class="form-group">' +
+              '<div class="form-group" id="nr-rate-group">' +
                 '<label>Suku Bunga / Bulan (%) <span class="required">*</span></label>' +
-                '<input class="form-input" type="number" id="nr-rate" placeholder="2.5" min="0" max="10" step="0.1" style="display:block;width:100%" oninput="Receivables.updatePreview()">' +
+                '<input class="form-input" type="number" id="nr-rate" placeholder="2.5" min="0" max="10" step="0.01" style="display:block;width:100%" oninput="Receivables.updatePreview()">' +
                 '<small class="form-hint">Flat rate — misal 2.5% per bulan</small>' +
+              '</div>' +
+              '<div class="form-group" id="nr-cicilan-group" style="display:none">' +
+                '<label>Jumlah Cicilan / Bulan (Rp) <span class="required">*</span></label>' +
+                '<input class="form-input" type="number" id="nr-cicilan-input" placeholder="629533" min="0" style="display:block;width:100%" oninput="Receivables.updatePreviewFromCicilan()">' +
+                '<small class="form-hint">Masukkan jumlah cicilan → rate akan dihitung otomatis</small>' +
               '</div>' +
               '<div class="form-group">' +
                 '<label>Tenor (bulan) <span class="required">*</span></label>' +
@@ -7195,7 +7207,45 @@ const Receivables = (() => {
       '</div>';
   }
 
-  // ── Dynamic form: toggle loan sections based on type ─────
+  // ── Toggle input mode: rate% or cicilan amount ───────────
+  function setInputMode(mode) {
+    var rateGroup    = document.getElementById('nr-rate-group');
+    var cicilanGroup = document.getElementById('nr-cicilan-group');
+    var btnRate      = document.getElementById('nr-mode-rate');
+    var btnCicilan   = document.getElementById('nr-mode-cicilan');
+
+    if (mode === 'rate') {
+      if (rateGroup)    rateGroup.style.display    = '';
+      if (cicilanGroup) cicilanGroup.style.display = 'none';
+      if (btnRate)      { btnRate.className    = 'btn btn-primary btn-sm'; btnRate.style.fontSize = '.75rem'; }
+      if (btnCicilan)   { btnCicilan.className = 'btn btn-ghost btn-sm';   btnCicilan.style.fontSize = '.75rem'; }
+    } else {
+      if (rateGroup)    rateGroup.style.display    = 'none';
+      if (cicilanGroup) cicilanGroup.style.display = '';
+      if (btnRate)      { btnRate.className    = 'btn btn-ghost btn-sm';   btnRate.style.fontSize = '.75rem'; }
+      if (btnCicilan)   { btnCicilan.className = 'btn btn-primary btn-sm'; btnCicilan.style.fontSize = '.75rem'; }
+    }
+    updatePreview();
+  }
+
+  // ── Calculate rate from cicilan input (reverse calculation) ──
+  function updatePreviewFromCicilan() {
+    var principal = parseFloat((document.getElementById('nr-amount') || {}).value) || 0;
+    var tenor     = parseInt((document.getElementById('nr-tenor') || {}).value) || 0;
+    var cicilan   = parseFloat((document.getElementById('nr-cicilan-input') || {}).value) || 0;
+
+    if (principal > 0 && tenor > 0 && cicilan > 0) {
+      // Reverse calculate: rate = ((cicilan × tenor) - principal) / (principal × tenor) × 100
+      var totalBunga   = (cicilan * tenor) - principal;
+      var monthlyBunga = totalBunga / tenor;
+      var rate         = (monthlyBunga / principal) * 100;
+
+      // Set rate field (hidden but used in saveNew)
+      var rateEl = document.getElementById('nr-rate');
+      if (rateEl) rateEl.value = rate.toFixed(4);
+    }
+    updatePreview();
+  }
   function onTypeChange() {
     var type = (document.getElementById('nr-type') || {}).value || '';
     var isLoan = (type === 'RCV-03' || type === 'RCV-04');
@@ -7410,6 +7460,13 @@ const Receivables = (() => {
 
     DB.Receivables.save(rcv);
 
+    // Immediately push receivable to Supabase (prevent auto-sync overwrite)
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+      SupabaseSync.pushNow('fos_receivables').then(function() {
+        console.log('[Piutang] Receivable pushed to Supabase:', rcvId);
+      });
+    }
+
     // ── ORIGINATION ENTRIES (v5.14.14) ───────────────────────
     // Rule: No cash entry at origination (money stays in BCA Ade)
     // Exception: Admin fee income IS recognized upfront (earned when loan made)
@@ -7489,34 +7546,36 @@ const Receivables = (() => {
   // ── Auto-generate payment schedule (Flat Rate) ───────────
   function _generateSchedule(rcvId, principal, monthlyPokok, monthlyBunga, monthlyCicilan, tenor, startDate) {
     var schedules = JSON.parse(localStorage.getItem('fos_receivable_schedules') || '[]');
-    var d = new Date(startDate);
-    // First payment: 1 month after start (or use firstPay date)
+    // Remove existing schedules for this receivable
+    schedules = schedules.filter(function(s){ return s.rcv_id !== rcvId; });
+
     for (var i = 1; i <= tenor; i++) {
-      var dueDate = new Date(d);
-      if (i === 1) {
-        // Use firstPay date directly
-        dueDate = new Date(startDate);
-      } else {
-        dueDate = new Date(startDate);
-        dueDate.setMonth(dueDate.getMonth() + (i - 1));
-      }
+      var dueDate = new Date(startDate);
+      dueDate.setMonth(dueDate.getMonth() + (i - 1));
       schedules.push({
-        sched_id:          rcvId + '-' + String(i).padStart(3, '0'),
-        rcv_id:            rcvId,
-        installment_number: i,
-        due_date:          dueDate.toISOString().split('T')[0],
-        expected_principal: monthlyPokok,
-        expected_interest:  monthlyBunga,
-        expected_total:     monthlyCicilan,
-        actual_paid_date:  null,
+        sched_id:             rcvId + '-' + String(i).padStart(3, '0'),
+        rcv_id:               rcvId,
+        installment_number:   i,
+        due_date:             dueDate.toISOString().split('T')[0],
+        expected_principal:   monthlyPokok,
+        expected_interest:    monthlyBunga,
+        expected_total:       monthlyCicilan,
+        actual_paid_date:     null,
         actual_principal_paid: 0,
         actual_interest_paid:  0,
-        actual_total_paid: 0,
+        actual_total_paid:    0,
         payment_reference_id: null,
-        status: 'Due'
+        status:               'Due'
       });
     }
     localStorage.setItem('fos_receivable_schedules', JSON.stringify(schedules));
+
+    // Immediately push to Supabase
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+      SupabaseSync.pushNow('fos_receivable_schedules').then(function() {
+        console.log('[Piutang] Schedule pushed to Supabase:', tenor, 'rows');
+      });
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -8045,16 +8104,16 @@ const Receivables = (() => {
       localStorage.setItem('fos_receivable_schedules', JSON.stringify(remainingScheds));
       SupabaseSync && SupabaseSync.queueBulkSync && SupabaseSync.queueBulkSync('fos_receivable_schedules');
 
-      // Sync to Supabase — tombstone receivable
+      // Sync to Supabase — hard DELETE (not tombstone)
       if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
         SupabaseSync.deleteRecord('fos_receivables', 'rcv_id', rcvId);
+        // Also delete schedules from Supabase
+        var schedToDelete = JSON.parse(localStorage.getItem('fos_receivable_schedules') || '[]')
+          .filter(function(s){ return s.rcv_id === rcvId; });
+        schedToDelete.forEach(function(s) {
+          SupabaseSync.deleteRecord('fos_receivable_schedules', 'sched_id', s.sched_id);
+        });
       }
-      Promise.all([
-        SupabaseSync.pushNow('fos_collections'),
-        SupabaseSync.pushNow('fos_receivable_schedules')
-      ]).then(function() {
-        console.log('Synced to Supabase after receivable deletion');
-      });
 
       Utils.toast('Piutang' + (hasPayments ? ' + ' + cols.length + ' pembayaran' : '') + ' berhasil dihapus');
       _renderList();
@@ -8166,7 +8225,7 @@ const Receivables = (() => {
     Utils.toast('Export berhasil');
   }
 
-  return { render, showNew, onEntityChange, onTypeChange, updatePreview, saveNew, viewDetail, showCollection, _updateColAllocation, saveCollection, voidOriginationEntries, writeOff, deleteRcv, deleteCollection, applyFilter, clearFilters, exportCSV };
+  return { render, showNew, onEntityChange, onTypeChange, setInputMode, updatePreview, updatePreviewFromCicilan, saveNew, viewDetail, showCollection, _updateColAllocation, saveCollection, voidOriginationEntries, writeOff, deleteRcv, deleteCollection, applyFilter, clearFilters, exportCSV };
 
 })();
 
@@ -15261,6 +15320,10 @@ const Masters = (() => {
       if (!vals['ac-coa'])    errors.push('COA wajib dipilih');
       if (errors.length) return errors;
       DB.Accounts.save({ account_id:Utils.newAccountId(), entity_id:vals['ac-entity'], account_name:vals['ac-name'], account_type:vals['ac-type'], coa_code:vals['ac-coa'], currency:'IDR', treasury_role:vals['ac-role']||null, opening_balance:parseFloat(vals['ac-opening'])||0, status:'Active' });
+      // Push to Supabase immediately
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+        SupabaseSync.pushNow('fos_accounts');
+      }
     });
   }
 
@@ -15300,6 +15363,10 @@ const Masters = (() => {
         treasury_role:   vals['ac-role'] || null,
         opening_balance: parseFloat(vals['ac-opening'])||0
       });
+      // Push to Supabase immediately
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+        SupabaseSync.pushNow('fos_accounts');
+      }
     });
   }
 
