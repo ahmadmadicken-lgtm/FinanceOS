@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.15 Piutang syntax fix build:20260725040000 -->
+<!-- Finance OS v5.14.17 Piutang Supabase sync fix for delete+payment build:20260730010000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -642,8 +642,9 @@ hr { border: none; border-top: 1px solid var(--border); }
   color: var(--text-muted);
 }
 .btn-action:hover { background: var(--bg-hover); color: var(--text); }
-.btn-action.text-green { color: var(--green); }
-.btn-action.text-red   { color: var(--red); }
+.btn-action.text-green  { color: var(--green); }
+.btn-action.text-red    { color: var(--red); }
+.btn-action.text-orange { color: #f97316; }
 
 /* ── Form Page ───────────────────────────────────────────── */
 .form-page { max-width: 820px; }
@@ -6991,8 +6992,9 @@ const Receivables = (() => {
     html += '<button class="btn-action" onclick="Receivables.viewDetail(\'' + r.rcv_id + '\')" title="Detail">👁</button>';
     if (r.status !== 'Closed' && r.status !== 'Written Off') {
       html += '<button class="btn-action text-green" onclick="Receivables.showCollection(\'' + r.rcv_id + '\')" title="Catat Pembayaran">+</button>';
-      html += '<button class="btn-action text-red" onclick="Receivables.writeOff(\'' + r.rcv_id + '\')" title="Write Off">✕</button>';
+      html += '<button class="btn-action text-orange" onclick="Receivables.writeOff(\'' + r.rcv_id + '\')" title="Write Off">⊘</button>';
     }
+    html += '<button class="btn-action text-red" onclick="Receivables.deleteRcv(\'' + r.rcv_id + '\')" title="Hapus Permanen">🗑</button>';
     html += '</div>';
     return html;
   }
@@ -7541,6 +7543,7 @@ const Receivables = (() => {
           '<td class="text-right mono text-green">' + Utils.formatIDR(interestPaid) + '</td>' +
           '<td class="text-sm">' + (acct ? acct.account_name : c.account_id) + '</td>' +
           '<td class="text-sm text-muted">' + (c.notes || '—') + '</td>' +
+          '<td><button class="btn-action text-red" onclick="Receivables.deleteCollection(\'' + c.col_id + '\',\'' + rcvId + '\')" title="Hapus Pembayaran">🗑</button></td>' +
         '</tr>';
       }).join('');
     }
@@ -7601,7 +7604,7 @@ const Receivables = (() => {
         // Collection history
         '<div class="detail-section-title">Riwayat Pembayaran Diterima</div>' +
         '<table class="table">' +
-          '<thead><tr><th>Tanggal</th><th class="text-right">Total</th><th class="text-right">Pokok</th><th class="text-right">Bunga</th><th>Akun</th><th>Catatan</th></tr></thead>' +
+          '<thead><tr><th>Tanggal</th><th class="text-right">Total</th><th class="text-right">Pokok</th><th class="text-right">Bunga</th><th>Akun</th><th>Catatan</th><th></th></tr></thead>' +
           '<tbody>' + colRows + '</tbody>' +
         '</table>' +
 
@@ -7963,6 +7966,17 @@ const Receivables = (() => {
     var msg = 'Pembayaran berhasil dicatat';
     if (isLoan) msg += ' — Pokok: ' + Utils.formatIDR(principalPaid) + ' | Bunga: ' + Utils.formatIDR(interestPaid);
     Utils.toast(msg);
+
+    // Push to Supabase immediately
+    Promise.all([
+      SupabaseSync.pushNow('fos_collections'),
+      SupabaseSync.pushNow('fos_receivables'),
+      SupabaseSync.pushNow('fos_receivable_schedules'),
+      SupabaseSync.pushNow('fos_transactions')
+    ]).then(function() {
+      console.log('Payment synced to Supabase');
+    });
+
     _renderList();
   }
 
@@ -7993,14 +8007,125 @@ const Receivables = (() => {
     _renderList();
   }
 
-  // ── Delete ───────────────────────────────────────────────
+  // ── Delete Piutang ───────────────────────────────────────
   function deleteRcv(rcvId) {
-    Utils.confirm('Hapus piutang ini? Jika sudah ada pembayaran, gunakan Write Off.', function() {
-      const result = DB.Receivables.delete(rcvId);
-      if (result && result.error) { Utils.toast(result.error, 'error'); return; }
-      Utils.toast('Piutang dihapus');
+    var r = DB.Receivables.byId(rcvId);
+    if (!r) return;
+    var cols = DB.Collections.byReceivable(rcvId);
+    var hasPayments = cols && cols.length > 0;
+    var msg = hasPayments
+      ? 'Piutang ini memiliki ' + cols.length + ' pembayaran.\nHapus piutang beserta SEMUA riwayat pembayaran dan jadwal cicilan?'
+      : 'Hapus piutang ini beserta jadwal cicilannya?';
+
+    Utils.confirm(msg, function() {
+      // 1. Delete receivable
+      DB.Receivables.delete(rcvId);
+
+      // 2. Delete all collections for this receivable
+      if (hasPayments) {
+        var allCols = JSON.parse(localStorage.getItem('fos_collections') || '[]');
+        var remaining = allCols.filter(function(c){ return c.rcv_id !== rcvId; });
+        localStorage.setItem('fos_collections', JSON.stringify(remaining));
+        SupabaseSync && SupabaseSync.queueBulkSync && SupabaseSync.queueBulkSync('fos_collections');
+      }
+
+      // 3. Delete all schedules for this receivable
+      var allScheds = JSON.parse(localStorage.getItem('fos_receivable_schedules') || '[]');
+      var remainingScheds = allScheds.filter(function(s){ return s.rcv_id !== rcvId; });
+      localStorage.setItem('fos_receivable_schedules', JSON.stringify(remainingScheds));
+      SupabaseSync && SupabaseSync.queueBulkSync && SupabaseSync.queueBulkSync('fos_receivable_schedules');
+
+      // Sync to Supabase
+      Promise.all([
+        SupabaseSync.pushNow('fos_receivables'),
+        SupabaseSync.pushNow('fos_collections'),
+        SupabaseSync.pushNow('fos_receivable_schedules')
+      ]).then(function() {
+        console.log('Synced to Supabase after receivable deletion');
+      });
+
+      Utils.toast('Piutang' + (hasPayments ? ' + ' + cols.length + ' pembayaran' : '') + ' berhasil dihapus');
       _renderList();
     });
+  }
+
+  // ── Delete Payment (Riwayat Pembayaran) ──────────────────
+  function deleteCollection(colId, rcvId) {
+    var r   = DB.Receivables.byId(rcvId);
+    var col = DB.Collections.all ? DB.Collections.all().find(function(c){ return c.col_id === colId; }) :
+              JSON.parse(localStorage.getItem('fos_collections') || '[]').find(function(c){ return c.col_id === colId; });
+    if (!col) { Utils.toast('Pembayaran tidak ditemukan', 'error'); return; }
+
+    Utils.confirm(
+      'Hapus pembayaran Rp ' + Utils.formatIDR(col.amount) + ' tanggal ' + Utils.formatDate(col.col_date) + '?\n\nOutstanding akan dikembalikan.',
+      function() {
+        // 1. Remove collection record
+        var allCols = JSON.parse(localStorage.getItem('fos_collections') || '[]');
+        var remaining = allCols.filter(function(c){ return c.col_id !== colId; });
+        localStorage.setItem('fos_collections', JSON.stringify(remaining));
+
+        // 2. Restore outstanding balance on receivable
+        var allRcv = JSON.parse(localStorage.getItem('fos_receivables') || '[]');
+        var idx = allRcv.findIndex(function(r){ return r.rcv_id === rcvId; });
+        if (idx >= 0) {
+          allRcv[idx].collected_amount  = Math.max(0, (allRcv[idx].collected_amount || 0) - col.amount);
+          allRcv[idx].outstanding_balance = (allRcv[idx].original_amount || 0) - allRcv[idx].collected_amount;
+          allRcv[idx].total_principal_paid = Math.max(0, (allRcv[idx].total_principal_paid || 0) - (col.principal_paid || col.amount));
+          allRcv[idx].total_interest_paid  = Math.max(0, (allRcv[idx].total_interest_paid  || 0) - (col.interest_paid  || 0));
+          // Update status
+          if (allRcv[idx].collected_amount <= 0) allRcv[idx].status = 'Open';
+          else if (allRcv[idx].outstanding_balance > 0) allRcv[idx].status = 'Partial';
+          else allRcv[idx].status = 'Closed';
+          localStorage.setItem('fos_receivables', JSON.stringify(allRcv));
+        }
+
+        // 3. Restore schedule status (if installment_num known)
+        if (col.installment_num) {
+          var allScheds = JSON.parse(localStorage.getItem('fos_receivable_schedules') || '[]');
+          var schedIdx = allScheds.findIndex(function(s){
+            return s.rcv_id === rcvId && s.installment_number === col.installment_num;
+          });
+          if (schedIdx >= 0) {
+            allScheds[schedIdx].status              = 'Due';
+            allScheds[schedIdx].actual_paid_date    = null;
+            allScheds[schedIdx].actual_total_paid   = 0;
+            allScheds[schedIdx].actual_principal_paid = 0;
+            allScheds[schedIdx].actual_interest_paid  = 0;
+            allScheds[schedIdx].payment_reference_id  = null;
+            localStorage.setItem('fos_receivable_schedules', JSON.stringify(allScheds));
+            SupabaseSync && SupabaseSync.queueBulkSync && SupabaseSync.queueBulkSync('fos_receivable_schedules');
+          }
+        }
+
+        // 4. Void related ledger transaction
+        if (col.txn_id) {
+          var allTxns = JSON.parse(localStorage.getItem('fos_transactions') || '[]');
+          allTxns.forEach(function(t) {
+            if (t.txn_id === col.txn_id || t.reference_id === colId) {
+              t.status = 'Void';
+              t.void_reason = 'Payment deleted by user';
+            }
+          });
+          localStorage.setItem('fos_transactions', JSON.stringify(allTxns));
+        }
+
+        // 5. Sync all affected tables to Supabase
+        Promise.all([
+          SupabaseSync.pushNow('fos_collections'),
+          SupabaseSync.pushNow('fos_receivables'),
+          SupabaseSync.pushNow('fos_receivable_schedules'),
+          SupabaseSync.pushNow('fos_transactions')
+        ]).then(function() {
+          console.log('All synced to Supabase after payment deletion');
+        });
+
+        Utils.toast('Pembayaran berhasil dihapus — outstanding dikembalikan');
+
+        // Refresh detail view
+        document.querySelectorAll('.modal-overlay').forEach(function(m){ m.remove(); });
+        viewDetail(rcvId);
+      }
+    );
   }
 
     // ── Export ────────────────────────────────────────────────
@@ -8024,7 +8149,7 @@ const Receivables = (() => {
     Utils.toast('Export berhasil');
   }
 
-  return { render, showNew, onEntityChange, onTypeChange, updatePreview, saveNew, viewDetail, showCollection, _updateColAllocation, saveCollection, voidOriginationEntries, writeOff, deleteRcv, applyFilter, clearFilters, exportCSV };
+  return { render, showNew, onEntityChange, onTypeChange, updatePreview, saveNew, viewDetail, showCollection, _updateColAllocation, saveCollection, voidOriginationEntries, writeOff, deleteRcv, deleteCollection, applyFilter, clearFilters, exportCSV };
 
 })();
 
