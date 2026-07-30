@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.21 Piutang Collections _deleted filter + tombstone delete build:20260730050000 -->
+<!-- Finance OS v5.14.22 Piutang Receivables _deleted tombstone fix build:20260730060000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3117,9 +3117,9 @@ const DB = (() => {
 
   // ── T2: Receivable Headers ────────────────────────────────
   const Receivables = {
-    all:  () => _get(KEYS.receivables),
-    open: () => _get(KEYS.receivables).filter(r => ["Open","Partial","Overdue"].includes(r.status)),
-    byId: (id) => _get(KEYS.receivables).find(r => r.rcv_id === id),
+    all:  () => _get(KEYS.receivables).filter(function(r){ return !r._deleted; }),
+    open: () => _get(KEYS.receivables).filter(r => !r._deleted && ["Open","Partial","Overdue"].includes(r.status)),
+    byId: (id) => _get(KEYS.receivables).find(r => r.rcv_id === id && !r._deleted),
     save: (record) => {
       const list = _get(KEYS.receivables);
       const idx = list.findIndex(r => r.rcv_id === record.rcv_id);
@@ -3128,10 +3128,14 @@ const DB = (() => {
       _refreshReceivableStatus(record.rcv_id);
     },
     delete: (rcv_id) => {
-      const hasCols = _get(KEYS.collections).some(c => c.rcv_id === rcv_id);
-      if (hasCols) return { error: 'Piutang tidak dapat dihapus karena sudah ada pembayaran yang tercatat. Gunakan Write Off.' };
-      _del(KEYS.receivables, r => r.rcv_id !== rcv_id);
-      // Also remove linked ledger entries
+      // Use tombstone pattern (same as debt_register)
+      const list = _get(KEYS.receivables);
+      const idx = list.findIndex(r => r.rcv_id === rcv_id);
+      if (idx >= 0) {
+        list[idx]._deleted = true;
+        _set(KEYS.receivables, list);
+      }
+      // Also tombstone linked ledger entries
       _del(KEYS.transactions, t => t.reference_id !== rcv_id);
       return { ok: true };
     },
@@ -8041,9 +8045,11 @@ const Receivables = (() => {
       localStorage.setItem('fos_receivable_schedules', JSON.stringify(remainingScheds));
       SupabaseSync && SupabaseSync.queueBulkSync && SupabaseSync.queueBulkSync('fos_receivable_schedules');
 
-      // Sync to Supabase
+      // Sync to Supabase — tombstone receivable
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
+        SupabaseSync.deleteRecord('fos_receivables', 'rcv_id', rcvId);
+      }
       Promise.all([
-        SupabaseSync.pushNow('fos_receivables'),
         SupabaseSync.pushNow('fos_collections'),
         SupabaseSync.pushNow('fos_receivable_schedules')
       ]).then(function() {
