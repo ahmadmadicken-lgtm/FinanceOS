@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.17 Piutang Supabase sync fix for delete+payment build:20260730010000 -->
+<!-- Finance OS v5.14.19 Piutang saveCollection fix build:20260730030000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -7840,6 +7840,10 @@ const Receivables = (() => {
   }
 
   function saveCollection(rcvId, btn) {
+    // Prevent double submit
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan...';
     var r       = DB.Receivables.byId(rcvId);
     var date    = document.getElementById('col-date').value;
     var amount  = parseFloat(document.getElementById('col-amount').value);
@@ -7884,6 +7888,8 @@ const Receivables = (() => {
     if (errors.length > 0) {
       errBox.style.display = 'block';
       errBox.innerHTML = '<ul>' + errors.map(function(e){ return '<li>' + e + '</li>'; }).join('') + '</ul>';
+      btn.disabled = false;
+      btn.textContent = 'Simpan Pembayaran';
       return;
     }
     errBox.style.display = 'none';
