@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.19 Piutang saveCollection fix build:20260730030000 -->
+<!-- Finance OS v5.14.21 Piutang Collections _deleted filter + tombstone delete build:20260730050000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3160,8 +3160,8 @@ const DB = (() => {
 
   // ── T3: Collections ───────────────────────────────────────
   const Collections = {
-    all:           () => _get(KEYS.collections),
-    byReceivable:  (rcv_id) => _get(KEYS.collections).filter(c => c.rcv_id === rcv_id),
+    all:           () => _get(KEYS.collections).filter(function(c){ return !c._deleted; }),
+    byReceivable:  (rcv_id) => _get(KEYS.collections).filter(function(c){ return c.rcv_id === rcv_id && !c._deleted; }),
     save: (record) => {
       const list = _get(KEYS.collections);
       list.push(record);
@@ -8116,8 +8116,13 @@ const Receivables = (() => {
         }
 
         // 5. Sync all affected tables to Supabase
+        // Hard delete collection using tombstone (same as fos_debt_payments pattern)
+        if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
+          SupabaseSync.deleteRecord('fos_collections', 'col_id', colId).then(function() {
+            console.log('Collection deleted from Supabase via deleteRecord');
+          });
+        }
         Promise.all([
-          SupabaseSync.pushNow('fos_collections'),
           SupabaseSync.pushNow('fos_receivables'),
           SupabaseSync.pushNow('fos_receivable_schedules'),
           SupabaseSync.pushNow('fos_transactions')
