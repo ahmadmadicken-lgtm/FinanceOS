@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.27 Gadai module - form + save build:20260731030000 -->
+<!-- Finance OS v5.14.29 Gadai sewa modal rate input + biaya asuransi build:20260731050000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -11025,6 +11025,15 @@ const DebtModule = (() => {
           // Gadai basic info
           '<div class="form-row">' +
             '<div class="form-group">' +
+              '<label>Jumlah Pinjaman (Rp) <span class="required">*</span></label>' +
+              '<input class="form-input" type="number" id="df-gadai-principal" placeholder="4000000" min="1" oninput="var el=document.getElementById(\'df-original\'); if(el) el.value=this.value; DebtModule.calcSewaModal();">' +
+              '<small class="form-hint">Nilai pinjaman yang disetujui Pegadaian saat ini</small>' +
+            '</div>' +
+          '</div>' +
+
+          // Gadai identifiers
+          '<div class="form-row">' +
+            '<div class="form-group">' +
               '<label>Jenis Jaminan <span class="required">*</span></label>' +
               '<select class="form-input" id="df-gadai-collateral-type" onchange="DebtModule.onGadaiCollateralTypeChange()">' +
                 '<option value="Tabungan Emas">Tabungan Emas (Digital)</option>' +
@@ -11054,22 +11063,39 @@ const DebtModule = (() => {
             '</div>' +
             '<div class="form-group">' +
               '<label>Tenor (hari)</label>' +
-              '<input class="form-input" type="number" id="df-gadai-tenor-days" value="120" placeholder="120">' +
+              '<input class="form-input" type="number" id="df-gadai-tenor-days" value="120" placeholder="120" oninput="DebtModule.calcSewaModal()">' +
             '</div>' +
           '</div>' +
 
           '<div class="form-row">' +
             '<div class="form-group">' +
-              '<label>Sewa Modal Saat Ini (Rp / 15 hari) <span class="required">*</span></label>' +
-              '<input class="form-input" type="number" id="df-gadai-sewa-modal" placeholder="30000">' +
+              '<label>Rate Sewa Modal (% / 15 hari) <span class="required">*</span></label>' +
+              '<input class="form-input" type="number" id="df-gadai-sewa-modal-rate" placeholder="1.2" min="0" max="10" step="0.01" oninput="DebtModule.calcSewaModal()">' +
+              '<small class="form-hint">Rate tetap — misal 1.2% per 15 hari. Nominal dihitung otomatis.</small>' +
             '</div>' +
             '<div class="form-group">' +
-              '<label>Biaya Admin (per perpanjangan)</label>' +
-              '<input class="form-input" type="number" id="df-gadai-biaya-admin" placeholder="2000">' +
+              '<label>Sewa Modal / 15 hari (Rp)</label>' +
+              '<input class="form-input mono" type="text" id="df-gadai-sewa-modal" readonly placeholder="Auto-hitung dari rate × pokok">' +
+              '<small class="form-hint">= Pokok × Rate. Bisa dioverride saat perpanjang.</small>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Total Sewa Modal 120 hari (Rp)</label>' +
+              '<input class="form-input mono" type="text" id="df-gadai-sewa-modal-total" readonly placeholder="Auto-hitung">' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Biaya Administrasi (per transaksi)</label>' +
+              '<input class="form-input" type="number" id="df-gadai-biaya-admin" placeholder="35000">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Biaya Asuransi (per transaksi)</label>' +
+              '<input class="form-input" type="number" id="df-gadai-biaya-asuransi" placeholder="1000">' +
             '</div>' +
             '<div class="form-group">' +
               '<label>Minimal Cicil Saat Ini</label>' +
-              '<input class="form-input" type="number" id="df-gadai-minimal-cicil" placeholder="490000">' +
+              '<input class="form-input" type="number" id="df-gadai-minimal-cicil" placeholder="0">' +
             '</div>' +
           '</div>' +
 
@@ -11195,6 +11221,21 @@ const DebtModule = (() => {
     }
   }
 
+  function calcSewaModal() {
+    var principal  = parseFloat((document.getElementById('df-gadai-principal') || {}).value) || 0;
+    var rate       = parseFloat((document.getElementById('df-gadai-sewa-modal-rate') || {}).value) || 0;
+    var tenorDays  = parseInt((document.getElementById('df-gadai-tenor-days') || {}).value) || 120;
+    var periods    = tenorDays / 15;
+
+    var nominalPer15 = Math.round(principal * rate / 100);
+    var totalSewa    = Math.round(nominalPer15 * periods);
+
+    var el1 = document.getElementById('df-gadai-sewa-modal');
+    var el2 = document.getElementById('df-gadai-sewa-modal-total');
+    if (el1) el1.value = principal > 0 && rate > 0 ? Utils.formatIDR(nominalPer15) : '';
+    if (el2) el2.value = principal > 0 && rate > 0 ? Utils.formatIDR(totalSewa) : '';
+  }
+
   function onGadaiCollateralTypeChange() {
     var type = (document.getElementById('df-gadai-collateral-type') || {}).value;
     var norekGroup = document.getElementById('df-gadai-norek-group');
@@ -11236,10 +11277,12 @@ const DebtModule = (() => {
     var issueDate     = (document.getElementById('df-gadai-issue-date')        || {}).value || '';
     var dueDate       = (document.getElementById('df-gadai-due-date')          || {}).value || '';
     var tenorDays     = parseInt((document.getElementById('df-gadai-tenor-days')     || {}).value) || 120;
-    var principal     = parseFloat((document.getElementById('df-original')           || {}).value) || 0;
-    var sewaModal     = parseFloat((document.getElementById('df-gadai-sewa-modal')   || {}).value) || 0;
-    var biayaAdmin    = parseFloat((document.getElementById('df-gadai-biaya-admin')  || {}).value) || 0;
-    var minCicil      = parseFloat((document.getElementById('df-gadai-minimal-cicil')|| {}).value) || 0;
+    var principal     = parseFloat((document.getElementById('df-gadai-principal') || document.getElementById('df-original') || {}).value) || 0;
+    var sewaModalRate = parseFloat((document.getElementById('df-gadai-sewa-modal-rate') || {}).value) || 0;
+    var sewaModal     = Math.round(principal * sewaModalRate / 100);
+    var biayaAdmin    = parseFloat((document.getElementById('df-gadai-biaya-admin')    || {}).value) || 0;
+    var biayaAsuransi = parseFloat((document.getElementById('df-gadai-biaya-asuransi') || {}).value) || 0;
+    var minCicil      = parseFloat((document.getElementById('df-gadai-minimal-cicil')  || {}).value) || 0;
     var norek         = (document.getElementById('df-gadai-norek')             || {}).value || '';
     var description   = (document.getElementById('df-description')             || {}).value || '';
     var cp            = (document.getElementById('df-cp')                      || {}).value || '';
@@ -11268,7 +11311,7 @@ const DebtModule = (() => {
     if (!principal || principal <= 0) errors.push('Jumlah pinjaman wajib diisi');
     if (!issueDate) errors.push('Tanggal kredit awal wajib diisi');
     if (!dueDate)   errors.push('Jatuh tempo wajib diisi');
-    if (!sewaModal) errors.push('Sewa modal wajib diisi');
+    if (!sewaModalRate) errors.push('Rate sewa modal wajib diisi (contoh: 1.2)');
 
     var errBox = document.getElementById('df-errors');
     if (errors.length > 0) {
@@ -11297,9 +11340,11 @@ const DebtModule = (() => {
       due_date:             dueDate,
       next_due_date:        dueDate,
       tenor_days:           tenorDays,
+      sewa_modal_rate:      sewaModalRate,
       sewa_modal_current:   sewaModal,
       sewa_modal_period_days: 15,
       biaya_admin:          biayaAdmin,
+      biaya_asuransi:       biayaAsuransi,
       minimal_cicil:        minCicil,
       collateral_type:      collType,
       collateral_items:     collateralItems,
@@ -12866,7 +12911,7 @@ const DebtModule = (() => {
     showEditFacility, _saveEditFacility,
     _editPayment, _deletePayment,
     onFacilityTypeChange,
-    onGadaiCollateralTypeChange, addCollateralItem, updateCollateralTotal, saveGadai
+    onGadaiCollateralTypeChange, addCollateralItem, updateCollateralTotal, calcSewaModal, saveGadai
   };
 
 })();
