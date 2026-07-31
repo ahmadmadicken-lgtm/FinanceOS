@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.24 deleteRcv cleans ledger txns + Gadai schema build:20260731000000 -->
+<!-- Finance OS v5.14.25 Transactions _deleted tombstone filter build:20260731010000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3080,18 +3080,18 @@ const DB = (() => {
 
   // ── T1: Transaction Ledger ────────────────────────────────
   const Transactions = {
-    all:    () => _get(KEYS.transactions),
-    posted: () => _get(KEYS.transactions).filter(t => t.status === "Posted"),
-    byEntity: (entity_id) => _get(KEYS.transactions).filter(t => t.entity_id === entity_id && t.status === "Posted"),
-    byPeriod: (period) => _get(KEYS.transactions).filter(t => t.period === period && t.status === "Posted"),
+    all:    () => _get(KEYS.transactions).filter(function(t){ return !t._deleted; }),
+    posted: () => _get(KEYS.transactions).filter(t => !t._deleted && t.status === "Posted"),
+    byEntity: (entity_id) => _get(KEYS.transactions).filter(t => !t._deleted && t.entity_id === entity_id && t.status === "Posted"),
+    byPeriod: (period) => _get(KEYS.transactions).filter(t => !t._deleted && t.period === period && t.status === "Posted"),
     byEntityPeriod: (entity_id, period) => {
-      const txns = _get(KEYS.transactions).filter(t => t.status === "Posted");
+      const txns = _get(KEYS.transactions).filter(t => !t._deleted && t.status === "Posted");
       if (entity_id !== "ALL") return txns.filter(t => t.entity_id === entity_id && t.period === period);
       return txns.filter(t => t.period === period);
     },
-    byId:   (id) => _get(KEYS.transactions).find(t => t.txn_id === id),
+    byId:   (id) => _get(KEYS.transactions).find(t => t.txn_id === id && !t._deleted),
     recent: (n = 10) => {
-      const posted = _get(KEYS.transactions).filter(t => t.status === "Posted");
+      const posted = _get(KEYS.transactions).filter(t => !t._deleted && t.status === "Posted");
       return posted.sort((a,b) => b.txn_date.localeCompare(a.txn_date)).slice(0, n);
     },
     save: (record) => {
@@ -8104,11 +8104,17 @@ const Receivables = (() => {
       var remainingScheds = allScheds.filter(function(s){ return s.rcv_id !== rcvId; });
       localStorage.setItem('fos_receivable_schedules', JSON.stringify(remainingScheds));
 
-      // 4. Delete all related ledger transactions
+      // 4. Delete all related ledger transactions (tombstone pattern)
       var allTxns = JSON.parse(localStorage.getItem('fos_transactions') || '[]');
-      var badTxnIds = allTxns.filter(function(t){ return t.reference_id === rcvId; }).map(function(t){ return t.txn_id; });
-      var remainingTxns = allTxns.filter(function(t){ return t.reference_id !== rcvId; });
-      localStorage.setItem('fos_transactions', JSON.stringify(remainingTxns));
+      var badTxnIds = [];
+      allTxns.forEach(function(t) {
+        if (t.reference_id === rcvId) {
+          t._deleted = true;
+          badTxnIds.push(t.txn_id);
+        }
+      });
+      localStorage.setItem('fos_transactions', JSON.stringify(allTxns));
+      console.log('[deleteRcv] Marked', badTxnIds.length, 'txns as deleted');
 
       // 5. Sync to Supabase — hard DELETE
       var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Ynp4cmdrYmNhaG13bWxqbGZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NTUyODksImV4cCI6MjA5ODMzMTI4OX0.Tn-ajLwGJFU3pdsILPVc1nvqdGZyzF2RdZ0qkguOMm0';
@@ -8120,14 +8126,16 @@ const Receivables = (() => {
         fetch(BASE + '/rest/v1/fos_receivable_schedules?rcv_id=eq.' + rcvId, { method:'DELETE', headers:H })
       ];
 
-      if (badTxnIds.length > 0) {
-        deletePromises.push(
-          fetch(BASE + '/rest/v1/fos_transactions?txn_id=in.(' + badTxnIds.join(',') + ')', { method:'DELETE', headers:H })
-        );
-      }
-
       Promise.all(deletePromises).then(function(results) {
-        console.log('[deleteRcv] Supabase delete:', results.map(function(r){ return r.status; }));
+        console.log('[deleteRcv] Supabase delete rcv+schedules:', results.map(function(r){ return r.status; }));
+        // Push tombstoned transactions to Supabase
+        if (badTxnIds.length > 0) {
+          return SupabaseSync.pushNow('fos_transactions');
+        }
+      }).then(function() {
+        if (badTxnIds.length > 0) {
+          console.log('[deleteRcv] Tombstoned transactions pushed to Supabase');
+        }
       });
 
       Utils.toast('Piutang' + (hasPayments ? ' + ' + cols.length + ' pembayaran' : '') + ' berhasil dihapus');
