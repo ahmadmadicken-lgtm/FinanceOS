@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.23 Piutang schedule push + delete fix + cicilan input mode + accounts sync build:20260730070000 -->
+<!-- Finance OS v5.14.24 deleteRcv cleans ledger txns + Gadai schema build:20260731000000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -8100,20 +8100,35 @@ const Receivables = (() => {
 
       // 3. Delete all schedules for this receivable
       var allScheds = JSON.parse(localStorage.getItem('fos_receivable_schedules') || '[]');
+      var schedIds = allScheds.filter(function(s){ return s.rcv_id === rcvId; }).map(function(s){ return s.sched_id; });
       var remainingScheds = allScheds.filter(function(s){ return s.rcv_id !== rcvId; });
       localStorage.setItem('fos_receivable_schedules', JSON.stringify(remainingScheds));
-      SupabaseSync && SupabaseSync.queueBulkSync && SupabaseSync.queueBulkSync('fos_receivable_schedules');
 
-      // Sync to Supabase — hard DELETE (not tombstone)
-      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.deleteRecord) {
-        SupabaseSync.deleteRecord('fos_receivables', 'rcv_id', rcvId);
-        // Also delete schedules from Supabase
-        var schedToDelete = JSON.parse(localStorage.getItem('fos_receivable_schedules') || '[]')
-          .filter(function(s){ return s.rcv_id === rcvId; });
-        schedToDelete.forEach(function(s) {
-          SupabaseSync.deleteRecord('fos_receivable_schedules', 'sched_id', s.sched_id);
-        });
+      // 4. Delete all related ledger transactions
+      var allTxns = JSON.parse(localStorage.getItem('fos_transactions') || '[]');
+      var badTxnIds = allTxns.filter(function(t){ return t.reference_id === rcvId; }).map(function(t){ return t.txn_id; });
+      var remainingTxns = allTxns.filter(function(t){ return t.reference_id !== rcvId; });
+      localStorage.setItem('fos_transactions', JSON.stringify(remainingTxns));
+
+      // 5. Sync to Supabase — hard DELETE
+      var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Ynp4cmdrYmNhaG13bWxqbGZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NTUyODksImV4cCI6MjA5ODMzMTI4OX0.Tn-ajLwGJFU3pdsILPVc1nvqdGZyzF2RdZ0qkguOMm0';
+      var BASE = 'https://ewbzxrgkbcahmwmljlfn.supabase.co';
+      var H = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Prefer': 'return=minimal' };
+
+      var deletePromises = [
+        fetch(BASE + '/rest/v1/fos_receivables?rcv_id=eq.' + rcvId, { method:'DELETE', headers:H }),
+        fetch(BASE + '/rest/v1/fos_receivable_schedules?rcv_id=eq.' + rcvId, { method:'DELETE', headers:H })
+      ];
+
+      if (badTxnIds.length > 0) {
+        deletePromises.push(
+          fetch(BASE + '/rest/v1/fos_transactions?txn_id=in.(' + badTxnIds.join(',') + ')', { method:'DELETE', headers:H })
+        );
       }
+
+      Promise.all(deletePromises).then(function(results) {
+        console.log('[deleteRcv] Supabase delete:', results.map(function(r){ return r.status; }));
+      });
 
       Utils.toast('Piutang' + (hasPayments ? ' + ' + cols.length + ' pembayaran' : '') + ' berhasil dihapus');
       _renderList();
