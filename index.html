@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.29 Gadai sewa modal rate input + biaya asuransi build:20260731050000 -->
+<!-- Finance OS v5.14.30 Gadai detail view + Perpanjangan + Tebus build:20260731060000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -11705,16 +11705,32 @@ const DebtModule = (() => {
             '</div>' +
           '</div>' +
           '<div class="debt-detail-actions">' +
-            (debt.status !== 'Settled'
-              ? '<button class="btn btn-primary" id="btn-catat-bayar">+ Catat Pembayaran</button>'
-              : '') +
+            (debt.facility_type === 'gadai'
+              ? (debt.status !== 'Settled'
+                  ? '<button class="btn btn-primary" id="btn-perpanjang">&#8635; Catat Perpanjangan</button>' +
+                    '<button class="btn btn-warning btn-sm" id="btn-tebus">&#10003; Catat Tebus</button>'
+                  : '<span class="badge badge-green">Lunas / Jaminan Kembali</span>')
+              : (debt.status !== 'Settled'
+                  ? '<button class="btn btn-primary" id="btn-catat-bayar">+ Catat Pembayaran</button>'
+                  : '')) +
             '<button class="btn btn-secondary btn-sm" id="btn-edit-debt">&#9998; Edit</button>' +
             '<button class="btn btn-ghost btn-sm" id="btn-hapus-debt">&#128465; Hapus</button>' +
           '</div>' +
         '</div>' +
 
-        // KPI Row
-        '<div class="debt-detail-kpi">' +
+        // KPI Row — Gadai specific
+        (debt.facility_type === 'gadai'
+          ? '<div class="debt-detail-kpi">' +
+              _detailKPI('Pokok Saat Ini', Utils.formatIDR(debt.outstanding_principal || debt.original_amount || 0), 'text-red') +
+              _detailKPI('Sewa Modal/15hr', Utils.formatIDR(Math.round((debt.outstanding_principal || debt.original_amount || 0) * (debt.sewa_modal_rate || 0) / 100)), '') +
+              _detailKPI('Total Sewa 120hr', Utils.formatIDR(Math.round((debt.outstanding_principal || debt.original_amount || 0) * (debt.sewa_modal_rate || 0) / 100) * 8), '') +
+              _detailKPI('Jatuh Tempo', debt.next_due_date ? Utils.formatDate(debt.next_due_date) : '—', '') +
+              _detailKPI('Rate Sewa Modal', (debt.sewa_modal_rate || 0) + '%/15 hari', '') +
+              _detailKPI('Minimal Cicil', Utils.formatIDR(debt.minimal_cicil || 0), '') +
+              _detailKPI('Total Gramasi', (debt.collateral_total_gram || 0).toFixed(2) + ' gr', '') +
+              _detailKPI('Perpanjangan', (debt.gadai_events ? debt.gadai_events.length : 0) + 'x', '') +
+            '</div>'
+          : '<div class="debt-detail-kpi">' +
           (function(){
             var unpaid = schedules.filter(function(s){ return s.status !== 'Paid'; });
             var displayOutstanding;
@@ -11737,27 +11753,41 @@ const DebtModule = (() => {
           _detailKPI('Sisa Angsuran', (debt.remaining_installments || 0) + ' dari ' + (debt.tenor_months || '?'), '') +
           _detailKPI('Total Dibayar', Utils.formatIDR(totalPaid), 'text-green') +
           _detailKPI('Total Bunga', Utils.formatIDR(totalInterest), 'text-red') +
-        '</div>' +
+        '</div>') +
 
-        // Info Row
-        '<div class="debt-detail-info">' +
-          '<span>&#9651; Rate: <strong>' + (debt.interest_rate || 0) + '%</strong>/tahun</span>' +
-          '<span>&#9632; Billing: <strong>' + (debt.billing_method || '—') + '</strong></span>' +
-          '<span>&#9650; Next Due: <strong>' + (debt.next_due_date ? Utils.formatDate(debt.next_due_date) : '—') + '</strong></span>' +
-          '<span>' + _debtStatusBadge(debt.status) + '</span>' +
-          (overdueCount > 0
-            ? '<span class="badge badge-red">&#9888; ' + overdueCount + ' angsuran overdue</span>'
-            : '<span class="badge badge-green">&#10003; ' + paidCount + '/' + schedules.length + ' lunas</span>') +
-        '</div>' +
+        // Info Row — different for Gadai
+        (debt.facility_type === 'gadai'
+          ? '<div class="debt-detail-info">' +
+              '<span>&#9651; Jaminan: <strong>' + (debt.collateral_type || '—') + '</strong></span>' +
+              '<span>&#9632; Gram: <strong>' + (debt.collateral_total_gram || 0).toFixed(2) + ' gr</strong></span>' +
+              '<span>&#9650; Next Due: <strong>' + (debt.next_due_date ? Utils.formatDate(debt.next_due_date) : '—') + '</strong></span>' +
+              '<span>' + _debtStatusBadge(debt.status) + '</span>' +
+              (debt.gadai_events && debt.gadai_events.length > 0
+                ? '<span class="badge badge-blue">' + debt.gadai_events.length + 'x diperpanjang</span>'
+                : '<span class="badge badge-gray">Belum diperpanjang</span>') +
+            '</div>'
+          : '<div class="debt-detail-info">' +
+              '<span>&#9651; Rate: <strong>' + (debt.interest_rate || 0) + '%</strong>/tahun</span>' +
+              '<span>&#9632; Billing: <strong>' + (debt.billing_method || '—') + '</strong></span>' +
+              '<span>&#9650; Next Due: <strong>' + (debt.next_due_date ? Utils.formatDate(debt.next_due_date) : '—') + '</strong></span>' +
+              '<span>' + _debtStatusBadge(debt.status) + '</span>' +
+              (overdueCount > 0
+                ? '<span class="badge badge-red">&#9888; ' + overdueCount + ' angsuran overdue</span>'
+                : '<span class="badge badge-green">&#10003; ' + paidCount + '/' + schedules.length + ' lunas</span>') +
+            '</div>') +
 
       '</div>' + // debt-detail-header
 
       // ── Tabs ─────────────────────────────────────────────
       '<div class="debt-tabs">' +
-        '<button class="debt-tab active" id="tab-schedule" data-tab="schedule">Jadwal Angsuran (' + schedules.length + ')</button>' +
-        '<button class="debt-tab" id="tab-obligations" data-tab="obligations">&#9776; Kelola Kewajiban</button>' +
-        '<button class="debt-tab" id="tab-payments" data-tab="payments">History Pembayaran (' + payments.length + ')</button>' +
-        '<button class="debt-tab" id="tab-info" data-tab="info">Info Lengkap</button>' +
+        (debt.facility_type === 'gadai'
+          ? '<button class="debt-tab active" id="tab-gadai-info" data-tab="gadai-info">&#9432; Info Gadai</button>' +
+            '<button class="debt-tab" id="tab-gadai-events" data-tab="gadai-events">&#8635; History Perpanjangan (' + (debt.gadai_events ? debt.gadai_events.length : 0) + ')</button>' +
+            '<button class="debt-tab" id="tab-gadai-collateral" data-tab="gadai-collateral">&#9830; Item Jaminan (' + (debt.collateral_items ? debt.collateral_items.length : 0) + ')</button>'
+          : '<button class="debt-tab active" id="tab-schedule" data-tab="schedule">Jadwal Angsuran (' + schedules.length + ')</button>' +
+            '<button class="debt-tab" id="tab-obligations" data-tab="obligations">&#9776; Kelola Kewajiban</button>' +
+            '<button class="debt-tab" id="tab-payments" data-tab="payments">History Pembayaran (' + payments.length + ')</button>' +
+            '<button class="debt-tab" id="tab-info" data-tab="info">Info Lengkap</button>') +
       '</div>' +
 
       // ── Tab: Jadwal Angsuran ──────────────────────────────
@@ -11875,11 +11905,103 @@ const DebtModule = (() => {
         '</table>' +
       '</div>' +
 
+      // ── Gadai Tab: Info ──────────────────────────────────
+      '<div id="tab-content-gadai-info" class="debt-tab-content" style="display:' + (debt.facility_type === 'gadai' ? 'block' : 'none') + '">' +
+        '<table class="detail-table" style="margin-top:.5rem">' +
+          _infoRow('ID', debt.debt_id) +
+          _infoRow('Jenis Jaminan', debt.collateral_type || '—') +
+          _infoRow('Nomor Kredit', debt.account_number || '—') +
+          _infoRow('Cabang/UPC', debt.branch || '—') +
+          _infoRow('No. Rek Tabungan Emas', debt.collateral_norek || '—') +
+          _infoRow('Entity', ent ? ent.entity_name : debt.entity_id) +
+          _infoRow('Business Unit', bu ? bu.bu_name : debt.bu_id) +
+          _infoRow('Akun Pencairan', acct ? acct.account_name : '—') +
+          _infoRow('Pokok Awal', Utils.formatIDR(debt.original_amount || 0)) +
+          _infoRow('Pokok Saat Ini', Utils.formatIDR(debt.outstanding_principal || debt.original_amount || 0)) +
+          _infoRow('Tanggal Kredit Awal', Utils.formatDate(debt.issue_date || debt.start_date)) +
+          _infoRow('Tenor', (debt.tenor_days || 120) + ' hari') +
+          _infoRow('Jatuh Tempo Saat Ini', debt.next_due_date ? Utils.formatDate(debt.next_due_date) : '—') +
+          _infoRow('Rate Sewa Modal', (debt.sewa_modal_rate || 0) + '% / 15 hari') +
+          _infoRow('Sewa Modal / 15 hari', Utils.formatIDR(Math.round((debt.outstanding_principal || debt.original_amount || 0) * (debt.sewa_modal_rate || 0) / 100))) +
+          _infoRow('Total Sewa Modal 120 hr', Utils.formatIDR(Math.round((debt.outstanding_principal || debt.original_amount || 0) * (debt.sewa_modal_rate || 0) / 100) * 8)) +
+          _infoRow('Biaya Admin', Utils.formatIDR(debt.biaya_admin || 0)) +
+          _infoRow('Biaya Asuransi', Utils.formatIDR(debt.biaya_asuransi || 0)) +
+          _infoRow('Minimal Cicil', debt.minimal_cicil ? Utils.formatIDR(debt.minimal_cicil) : '—') +
+          _infoRow('Total Gramasi', (debt.collateral_total_gram || 0).toFixed(2) + ' gram') +
+          _infoRow('Jumlah Perpanjangan', (debt.gadai_events ? debt.gadai_events.length : 0) + 'x') +
+          _infoRow('Status', _debtStatusBadge(debt.status)) +
+        '</table>' +
+      '</div>' +
+
+      // ── Gadai Tab: History Perpanjangan ──────────────────
+      '<div id="tab-content-gadai-events" class="debt-tab-content" style="display:none">' +
+        (function() {
+          var events = debt.gadai_events || [];
+          if (events.length === 0) return '<div class="debt-empty">Belum ada perpanjangan. Klik "Catat Perpanjangan" untuk mencatat.</div>';
+          return '<div style="overflow-x:auto"><table class="table debt-table">' +
+            '<thead><tr>' +
+              '<th>Tanggal</th><th class="text-right">Cicilan</th>' +
+              '<th class="text-right">Sewa Modal</th><th class="text-right">Admin</th>' +
+              '<th class="text-right">Asuransi</th><th class="text-right">Total Bayar</th>' +
+              '<th class="text-right">Pokok Baru</th><th>Due Date Baru</th>' +
+              '<th>Akun</th><th>Aksi</th>' +
+            '</tr></thead><tbody>' +
+            events.map(function(ev, i) {
+              var evAcct = DB.Accounts.byId(ev.account_id);
+              return '<tr>' +
+                '<td class="text-sm">' + Utils.formatDate(ev.event_date) + '</td>' +
+                '<td class="text-right mono">' + Utils.formatIDR(ev.cicilan_pokok || 0) + '</td>' +
+                '<td class="text-right mono">' + Utils.formatIDR(ev.sewa_modal_paid || 0) + '</td>' +
+                '<td class="text-right mono">' + Utils.formatIDR(ev.biaya_admin || 0) + '</td>' +
+                '<td class="text-right mono">' + Utils.formatIDR(ev.biaya_asuransi || 0) + '</td>' +
+                '<td class="text-right mono text-red">' + Utils.formatIDR(ev.total_paid || 0) + '</td>' +
+                '<td class="text-right mono">' + Utils.formatIDR(ev.principal_after || 0) + '</td>' +
+                '<td class="text-sm">' + Utils.formatDate(ev.due_date_new) + '</td>' +
+                '<td class="text-sm">' + (evAcct ? evAcct.account_name : '—') + '</td>' +
+                '<td>' +
+                  '<button class="btn-action text-red" onclick="DebtModule.deleteGadaiEvent(\'' + debt.debt_id + '\',' + i + ')" title="Hapus">🗑</button>' +
+                '</td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody></table></div>';
+        })() +
+      '</div>' +
+
+      // ── Gadai Tab: Item Jaminan ───────────────────────────
+      '<div id="tab-content-gadai-collateral" class="debt-tab-content" style="display:none">' +
+        (function() {
+          var items = debt.collateral_items || [];
+          if (items.length === 0) return '<div class="debt-empty">Tidak ada item jaminan tercatat.</div>';
+          return '<table class="table debt-table">' +
+            '<thead><tr><th>Jenis</th><th class="text-right">Gram</th><th>Deskripsi</th></tr></thead><tbody>' +
+            items.map(function(item) {
+              return '<tr>' +
+                '<td>' + (item.type || '—') + '</td>' +
+                '<td class="text-right mono">' + (item.gram || 0).toFixed(2) + ' gr</td>' +
+                '<td class="text-sm text-muted">' + (item.desc || '—') + '</td>' +
+              '</tr>';
+            }).join('') +
+            '<tr style="font-weight:700;border-top:2px solid var(--border)">' +
+              '<td>TOTAL</td>' +
+              '<td class="text-right mono">' + (debt.collateral_total_gram || 0).toFixed(2) + ' gr</td>' +
+              '<td></td>' +
+            '</tr>' +
+            '</tbody></table>';
+        })() +
+      '</div>' +
+
       '</div>'; // debt-page
 
-    // Bind buttons via JS (avoid onclick string escaping)
-    var btnBayar = document.getElementById('btn-catat-bayar');
-    if (btnBayar) btnBayar.onclick = function() { showPayment(_selectedDebtId); };
+    // Bind Gadai buttons
+    var btnPerpanjang = document.getElementById('btn-perpanjang');
+    var btnTebus      = document.getElementById('btn-tebus');
+    if (btnPerpanjang) btnPerpanjang.onclick = function() { _showGadaiPerpanjangan(_selectedDebtId); };
+    if (btnTebus)      btnTebus.onclick      = function() { _showGadaiTebus(_selectedDebtId); };
+
+    // Bind Gadai tabs
+    document.querySelectorAll('.debt-tab').forEach(function(btn) {
+      btn.onclick = function() { _switchTab(btn.getAttribute('data-tab')); };
+    });
     var btnHapus = document.getElementById('btn-hapus-debt');
     var btnEdit  = document.getElementById('btn-edit-debt');
     if (btnEdit)  btnEdit.onclick  = function() { showEditFacility(_selectedDebtId); };
@@ -11942,6 +12064,258 @@ const DebtModule = (() => {
     // Bind tabs
     body.querySelectorAll('.debt-tab[data-tab]').forEach(function(btn) {
       btn.onclick = function() { _switchTab(btn.getAttribute('data-tab')); };
+    });
+  }
+
+  // ── Gadai: Catat Perpanjangan ─────────────────────────────
+  function _showGadaiPerpanjangan(debtId) {
+    var debt = DB.DebtRegister.byId(debtId);
+    if (!debt) return;
+    var accounts = DB.Accounts.all().filter(function(a){ return ['Bank','E-Wallet','Cash'].includes(a.account_type) && a.status === 'Active'; });
+    var pokok    = debt.outstanding_principal || debt.original_amount || 0;
+    var rate     = debt.sewa_modal_rate || 0;
+    var sewaPerPeriod = Math.round(pokok * rate / 100);
+    var tenor    = debt.tenor_days || 120;
+    var periods  = tenor / 15;
+    var totalSewa = sewaPerPeriod * periods;
+    var minCicil = debt.minimal_cicil || 0;
+    var biayaAdmin = debt.biaya_admin || 0;
+    var biayaAsuransi = debt.biaya_asuransi || 0;
+    var currentDue = new Date(debt.next_due_date || debt.due_date || Utils.today());
+    var newDue = new Date(currentDue);
+    newDue.setDate(newDue.getDate() + tenor);
+    var newDueStr = newDue.toISOString().split('T')[0];
+    var modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML =
+      '<div class="modal modal-md">' +
+        '<div class="modal-header">' +
+          '<div><h3>Catat Perpanjangan Gadai</h3>' +
+            '<div class="text-muted text-sm">' + debt.description + ' — Pokok: ' + Utils.formatIDR(pokok) + '</div>' +
+          '</div>' +
+          '<button class="btn btn-ghost btn-sm" onclick="this.closest(\'.modal-overlay\').remove()">✕</button>' +
+        '</div>' +
+        '<div class="form-body" style="padding:1.25rem">' +
+          '<div class="form-group">' +
+            '<label>Tanggal Perpanjangan <span class="required">*</span></label>' +
+            '<input class="form-input" type="date" id="gp-date" value="' + Utils.today() + '">' +
+            '<small class="form-hint">Backdate ke tanggal perpanjangan aktual</small>' +
+          '</div>' +
+          '<div class="form-section-title" style="margin:.75rem 0 .5rem">Pembayaran Saat Ini</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Cicilan Pokok (Rp)</label>' +
+              '<input class="form-input" type="number" id="gp-cicilan" value="' + minCicil + '" oninput="DebtModule._gadaiCalcTotal()">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Sewa Modal Dibayar (Rp) <span class="required">*</span></label>' +
+              '<input class="form-input" type="number" id="gp-sewa" value="' + totalSewa + '" oninput="DebtModule._gadaiCalcTotal()">' +
+              '<small class="form-hint">Auto: ' + Utils.formatIDR(sewaPerPeriod) + '/15hr × ' + periods + ' = ' + Utils.formatIDR(totalSewa) + '</small>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Biaya Admin (Rp)</label>' +
+              '<input class="form-input" type="number" id="gp-admin" value="' + biayaAdmin + '" oninput="DebtModule._gadaiCalcTotal()">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Biaya Asuransi (Rp)</label>' +
+              '<input class="form-input" type="number" id="gp-asuransi" value="' + biayaAsuransi + '" oninput="DebtModule._gadaiCalcTotal()">' +
+            '</div>' +
+          '</div>' +
+          '<div style="background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:.75rem">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center">' +
+              '<span class="text-sm text-muted">Total Kewajiban</span>' +
+              '<span class="mono text-red" id="gp-total" style="font-size:1.1rem;font-weight:700">' + Utils.formatIDR(minCicil + totalSewa + biayaAdmin + biayaAsuransi) + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Akun Pembayaran <span class="required">*</span></label>' +
+            '<select class="form-input" id="gp-account">' +
+              '<option value="">— Pilih Akun —</option>' +
+              accounts.map(function(a){ return '<option value="' + a.account_id + '">' + a.account_name + '</option>'; }).join('') +
+            '</select>' +
+          '</div>' +
+          '<div class="form-section-title" style="margin:.75rem 0 .5rem">Kondisi Baru (dari Pegadaian)</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Sewa Modal Baru (Rp/15hr)</label>' +
+              '<input class="form-input" type="number" id="gp-sewa-baru" placeholder="' + sewaPerPeriod + '">' +
+              '<small class="form-hint">Kosong = sama dengan sebelumnya</small>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Minimal Cicil Berikutnya</label>' +
+              '<input class="form-input" type="number" id="gp-mincicil-baru" placeholder="' + minCicil + '">' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label>Due Date Baru <span class="required">*</span></label>' +
+            '<input class="form-input" type="date" id="gp-due-baru" value="' + newDueStr + '">' +
+            '<small class="form-hint">Auto: +' + tenor + ' hari dari jatuh tempo lama</small>' +
+          '</div>' +
+          '<div id="gp-errors" class="error-box" style="display:none"></div>' +
+        '</div>' +
+        '<div class="modal-actions" style="padding:0 1.25rem 1.25rem">' +
+          '<button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">Batal</button>' +
+          '<button class="btn btn-primary" onclick="DebtModule._saveGadaiPerpanjangan(\'' + debtId + '\', this)">✓ Simpan Perpanjangan</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+    modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+  }
+
+  function _gadaiCalcTotal() {
+    var c = parseFloat((document.getElementById('gp-cicilan')||{}).value)||0;
+    var s = parseFloat((document.getElementById('gp-sewa')||{}).value)||0;
+    var a = parseFloat((document.getElementById('gp-admin')||{}).value)||0;
+    var i = parseFloat((document.getElementById('gp-asuransi')||{}).value)||0;
+    var el = document.getElementById('gp-total');
+    if (el) el.textContent = Utils.formatIDR(c+s+a+i);
+  }
+
+  function _saveGadaiPerpanjangan(debtId, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+    var debt = DB.DebtRegister.byId(debtId);
+    if (!debt) return;
+    var date     = (document.getElementById('gp-date')||{}).value||'';
+    var cicilan  = parseFloat((document.getElementById('gp-cicilan')||{}).value)||0;
+    var sewa     = parseFloat((document.getElementById('gp-sewa')||{}).value)||0;
+    var admin    = parseFloat((document.getElementById('gp-admin')||{}).value)||0;
+    var asuransi = parseFloat((document.getElementById('gp-asuransi')||{}).value)||0;
+    var account  = (document.getElementById('gp-account')||{}).value||'';
+    var sewaBaru = parseFloat((document.getElementById('gp-sewa-baru')||{}).value)||0;
+    var minCicilBaru = parseFloat((document.getElementById('gp-mincicil-baru')||{}).value)||0;
+    var dueBaru  = (document.getElementById('gp-due-baru')||{}).value||'';
+    var errors = [];
+    if (!date) errors.push('Tanggal wajib diisi');
+    if (!sewa) errors.push('Sewa modal wajib diisi');
+    if (!account) errors.push('Akun wajib dipilih');
+    if (!dueBaru) errors.push('Due date baru wajib diisi');
+    var errBox = document.getElementById('gp-errors');
+    if (errors.length > 0) {
+      errBox.style.display='block';
+      errBox.innerHTML='<ul>'+errors.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul>';
+      if(btn){btn.disabled=false;btn.textContent='✓ Simpan Perpanjangan';}
+      return;
+    }
+    var totalPaid  = cicilan + sewa + admin + asuransi;
+    var pokokLama  = debt.outstanding_principal || debt.original_amount || 0;
+    var pokokBaru  = pokokLama - cicilan;
+    var rateBaru   = sewaBaru > 0 ? (sewaBaru / pokokBaru * 100) : (debt.sewa_modal_rate||0);
+    var minCicilFinal = minCicilBaru > 0 ? minCicilBaru : (debt.minimal_cicil||0);
+    var events = debt.gadai_events || [];
+    events.push({ event_date:date, event_type:'Perpanjang', cicilan_pokok:cicilan, sewa_modal_paid:sewa, biaya_admin:admin, biaya_asuransi:asuransi, total_paid:totalPaid, principal_before:pokokLama, principal_after:pokokBaru, due_date_new:dueBaru, sewa_modal_new:sewaBaru||Math.round(pokokBaru*(debt.sewa_modal_rate||0)/100), minimal_cicil_new:minCicilFinal, account_id:account });
+    DB.DebtRegister.save(Object.assign({},debt,{ outstanding_principal:pokokBaru, next_due_date:dueBaru, due_date:dueBaru, sewa_modal_rate:rateBaru, minimal_cicil:minCicilFinal, gadai_events:events }));
+    var acct = DB.Accounts.byId(account);
+    var acctCOA = acct ? (acct.coa_code||'101') : '101';
+    DB.Transactions.save({ txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:acctCOA,type_id:'TXN-08',cp_id:debt.cp_id,amount:totalPaid,direction:'Credit',description:'Perpanjangan Gadai — '+debt.description+' | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date) });
+    if(cicilan>0) DB.Transactions.save({ txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:'212',type_id:'TXN-08',cp_id:debt.cp_id,amount:cicilan,direction:'Debit',description:'Perpanjangan Gadai — Cicilan Pokok [DR 212] | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date) });
+    if(sewa>0) DB.Transactions.save({ txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:'542',type_id:'TXN-08',cp_id:debt.cp_id,amount:sewa,direction:'Debit',description:'Perpanjangan Gadai — Sewa Modal [DR 542] | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date) });
+    if(admin+asuransi>0) DB.Transactions.save({ txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:'542',type_id:'TXN-08',cp_id:debt.cp_id,amount:admin+asuransi,direction:'Debit',description:'Perpanjangan Gadai — Admin+Asuransi [DR 542] | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date) });
+    Promise.all([SupabaseSync.pushNow('fos_debt_register'),SupabaseSync.pushNow('fos_transactions')]).then(function(){console.log('[Gadai] Perpanjangan synced');});
+    document.querySelectorAll('.modal-overlay').forEach(function(m){m.remove();});
+    Utils.toast('Perpanjangan dicatat — Pokok baru: '+Utils.formatIDR(pokokBaru)+' | Due: '+Utils.formatDate(dueBaru));
+    showDetail(debtId);
+  }
+
+  function _showGadaiTebus(debtId) {
+    var debt = DB.DebtRegister.byId(debtId);
+    if (!debt) return;
+    var accounts = DB.Accounts.all().filter(function(a){ return ['Bank','E-Wallet','Cash'].includes(a.account_type) && a.status === 'Active'; });
+    var pokok = debt.outstanding_principal || debt.original_amount || 0;
+    var rate  = debt.sewa_modal_rate || 0;
+    var tenor = debt.tenor_days || 120;
+    var sewaTotal = Math.round(pokok * rate / 100) * (tenor / 15);
+    var biayaAdmin = debt.biaya_admin || 0;
+    var biayaAsuransi = debt.biaya_asuransi || 0;
+    var totalTebus = pokok + sewaTotal + biayaAdmin + biayaAsuransi;
+    var modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML =
+      '<div class="modal modal-md">' +
+        '<div class="modal-header">' +
+          '<div><h3>Catat Tebus (Pelunasan Gadai)</h3>' +
+            '<div class="text-muted text-sm">' + debt.description + '</div>' +
+          '</div>' +
+          '<button class="btn btn-ghost btn-sm" onclick="this.closest(\'.modal-overlay\').remove()">✕</button>' +
+        '</div>' +
+        '<div class="form-body" style="padding:1.25rem">' +
+          '<div class="form-group"><label>Tanggal Tebus <span class="required">*</span></label><input class="form-input" type="date" id="gt-date" value="' + Utils.today() + '"></div>' +
+          '<div class="form-row">' +
+            '<div class="form-group"><label>Pokok Dilunasi</label><input class="form-input" type="number" id="gt-pokok" value="' + pokok + '" oninput="DebtModule._gadaiCalcTebusTotal()"></div>' +
+            '<div class="form-group"><label>Sewa Modal</label><input class="form-input" type="number" id="gt-sewa" value="' + sewaTotal + '" oninput="DebtModule._gadaiCalcTebusTotal()"></div>' +
+          '</div>' +
+          '<div class="form-row">' +
+            '<div class="form-group"><label>Biaya Admin</label><input class="form-input" type="number" id="gt-admin" value="' + biayaAdmin + '" oninput="DebtModule._gadaiCalcTebusTotal()"></div>' +
+            '<div class="form-group"><label>Biaya Asuransi</label><input class="form-input" type="number" id="gt-asuransi" value="' + biayaAsuransi + '" oninput="DebtModule._gadaiCalcTebusTotal()"></div>' +
+          '</div>' +
+          '<div style="background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:.75rem"><div style="display:flex;justify-content:space-between"><span>Total Tebus</span><span class="mono text-red" id="gt-total" style="font-size:1.1rem;font-weight:700">' + Utils.formatIDR(totalTebus) + '</span></div></div>' +
+          '<div class="form-group"><label>Akun Pembayaran <span class="required">*</span></label><select class="form-input" id="gt-account"><option value="">— Pilih Akun —</option>' + accounts.map(function(a){ return '<option value="'+a.account_id+'">'+a.account_name+'</option>'; }).join('') + '</select></div>' +
+          '<div id="gt-errors" class="error-box" style="display:none"></div>' +
+        '</div>' +
+        '<div class="modal-actions" style="padding:0 1.25rem 1.25rem">' +
+          '<button class="btn btn-ghost" onclick="this.closest(\'.modal-overlay\').remove()">Batal</button>' +
+          '<button class="btn btn-primary" onclick="DebtModule._saveGadaiTebus(\'' + debtId + '\', this)">✓ Simpan & Lunasi</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+    modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+  }
+
+  function _gadaiCalcTebusTotal() {
+    var p=parseFloat((document.getElementById('gt-pokok')||{}).value)||0;
+    var s=parseFloat((document.getElementById('gt-sewa')||{}).value)||0;
+    var a=parseFloat((document.getElementById('gt-admin')||{}).value)||0;
+    var i=parseFloat((document.getElementById('gt-asuransi')||{}).value)||0;
+    var el=document.getElementById('gt-total');
+    if(el) el.textContent=Utils.formatIDR(p+s+a+i);
+  }
+
+  function _saveGadaiTebus(debtId, btn) {
+    if(btn){btn.disabled=true;btn.textContent='Menyimpan...';}
+    var debt=DB.DebtRegister.byId(debtId); if(!debt) return;
+    var date=(document.getElementById('gt-date')||{}).value||'';
+    var pokok=parseFloat((document.getElementById('gt-pokok')||{}).value)||0;
+    var sewa=parseFloat((document.getElementById('gt-sewa')||{}).value)||0;
+    var admin=parseFloat((document.getElementById('gt-admin')||{}).value)||0;
+    var asuransi=parseFloat((document.getElementById('gt-asuransi')||{}).value)||0;
+    var account=(document.getElementById('gt-account')||{}).value||'';
+    var total=pokok+sewa+admin+asuransi;
+    var errors=[];
+    if(!date) errors.push('Tanggal wajib diisi');
+    if(!account) errors.push('Akun wajib dipilih');
+    var errBox=document.getElementById('gt-errors');
+    if(errors.length>0){errBox.style.display='block';errBox.innerHTML='<ul>'+errors.map(function(e){return '<li>'+e+'</li>';}).join('')+'</ul>';if(btn){btn.disabled=false;btn.textContent='✓ Simpan & Lunasi';}return;}
+    var events=debt.gadai_events||[];
+    events.push({event_date:date,event_type:'Tebus',principal_paid:pokok,sewa_modal_paid:sewa,biaya_admin:admin,biaya_asuransi:asuransi,total_paid:total,account_id:account});
+    DB.DebtRegister.save(Object.assign({},debt,{status:'Settled',outstanding_principal:0,gadai_events:events,settlement_date:date}));
+    var acct=DB.Accounts.byId(account);
+    var acctCOA=acct?(acct.coa_code||'101'):'101';
+    DB.Transactions.save({txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:acctCOA,type_id:'TXN-08',cp_id:debt.cp_id,amount:total,direction:'Credit',description:'Tebus Gadai — '+debt.description+'| Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date)});
+    if(pokok>0) DB.Transactions.save({txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:'212',type_id:'TXN-08',cp_id:debt.cp_id,amount:pokok,direction:'Debit',description:'Tebus Gadai — Pelunasan Pokok | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date)});
+    if(sewa>0) DB.Transactions.save({txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:'542',type_id:'TXN-08',cp_id:debt.cp_id,amount:sewa,direction:'Debit',description:'Tebus Gadai — Sewa Modal | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date)});
+    if(admin+asuransi>0) DB.Transactions.save({txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:'542',type_id:'TXN-08',cp_id:debt.cp_id,amount:admin+asuransi,direction:'Debit',description:'Tebus Gadai — Admin+Asuransi | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date)});
+    Promise.all([SupabaseSync.pushNow('fos_debt_register'),SupabaseSync.pushNow('fos_transactions')]).then(function(){console.log('[Gadai] Tebus synced');});
+    document.querySelectorAll('.modal-overlay').forEach(function(m){m.remove();});
+    Utils.toast('Gadai berhasil ditebus — jaminan kembali ✓');
+    showDetail(debtId);
+  }
+
+  function deleteGadaiEvent(debtId, eventIndex) {
+    var debt=DB.DebtRegister.byId(debtId);
+    if(!debt||!debt.gadai_events) return;
+    var ev=debt.gadai_events[eventIndex];
+    if(!ev) return;
+    Utils.confirm('Hapus perpanjangan tanggal '+Utils.formatDate(ev.event_date)+'?', function(){
+      var events=debt.gadai_events.filter(function(_,i){return i!==eventIndex;});
+      var restoredPrincipal=ev.event_type==='Perpanjang'?(ev.principal_before||0):(debt.outstanding_principal||0);
+      DB.DebtRegister.save(Object.assign({},debt,{gadai_events:events,outstanding_principal:restoredPrincipal,status:'Active'}));
+      var allTxns=JSON.parse(localStorage.getItem('fos_transactions')||'[]');
+      allTxns.forEach(function(t){if(t.reference_id===debtId&&t.txn_date===ev.event_date){t._deleted=true;}});
+      localStorage.setItem('fos_transactions',JSON.stringify(allTxns));
+      Promise.all([SupabaseSync.pushNow('fos_debt_register'),SupabaseSync.pushNow('fos_transactions')]).then(function(){console.log('[Gadai] Event deleted');});
+      Utils.toast('Perpanjangan dihapus');
+      showDetail(debtId);
     });
   }
 
@@ -12911,7 +13285,10 @@ const DebtModule = (() => {
     showEditFacility, _saveEditFacility,
     _editPayment, _deletePayment,
     onFacilityTypeChange,
-    onGadaiCollateralTypeChange, addCollateralItem, updateCollateralTotal, calcSewaModal, saveGadai
+    onGadaiCollateralTypeChange, addCollateralItem, updateCollateralTotal, calcSewaModal, saveGadai,
+    _showGadaiPerpanjangan, _gadaiCalcTotal, _saveGadaiPerpanjangan,
+    _showGadaiTebus, _gadaiCalcTebusTotal, _saveGadaiTebus,
+    deleteGadaiEvent
   };
 
 })();
