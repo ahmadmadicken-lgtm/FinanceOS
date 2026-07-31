@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.25 Transactions _deleted tombstone filter build:20260731010000 -->
+<!-- Finance OS v5.14.26 Fix DB.Receivables.delete _del bug build:20260731020000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3135,8 +3135,7 @@ const DB = (() => {
         list[idx]._deleted = true;
         _set(KEYS.receivables, list);
       }
-      // Also tombstone linked ledger entries
-      _del(KEYS.transactions, t => t.reference_id !== rcv_id);
+      // Note: ledger transaction cleanup handled by deleteRcv() in UI layer
       return { ok: true };
     },
     computeOutstanding: (rcv_id) => {
