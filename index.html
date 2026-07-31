@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.26 Fix DB.Receivables.delete _del bug build:20260731020000 -->
+<!-- Finance OS v5.14.27 Gadai module - form + save build:20260731030000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -10802,6 +10802,7 @@ const DebtModule = (() => {
                 '<option value="installment">Installment — KTA, cicilan tetap</option>' +
                 '<option value="revolving_parent">Revolving Parent — buat fasilitas induk (Allo Paylater, Shopee Pinjam)</option>' +
                 '<option value="revolving_draw">Revolving Draw — tarik dari fasilitas induk</option>' +
+                '<option value="gadai">Gadai — Pegadaian (Tabungan Emas / Emas Fisik)</option>' +
               '</select>' +
             '</div>' +
             '<div class="form-group" id="df-parent-group" style="display:none">' +
@@ -11017,12 +11018,95 @@ const DebtModule = (() => {
           '<div id="df-schedule-table"></div>' +
         '</div>' +
 
+        // ── Section GADAI: Gadai-specific fields (hidden by default) ──
+        '<div class="form-section" id="df-gadai-section" style="display:none">' +
+          '<div class="form-section-title">Gadai — Detail Pinjaman</div>' +
+
+          // Gadai basic info
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Jenis Jaminan <span class="required">*</span></label>' +
+              '<select class="form-input" id="df-gadai-collateral-type" onchange="DebtModule.onGadaiCollateralTypeChange()">' +
+                '<option value="Tabungan Emas">Tabungan Emas (Digital)</option>' +
+                '<option value="Emas Fisik">Emas Fisik (UPC)</option>' +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Nomor Kredit Pegadaian</label>' +
+              '<input class="form-input" type="text" id="df-gadai-account-no" placeholder="1235 3263 2000 2946">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Cabang/UPC</label>' +
+              '<input class="form-input" type="text" id="df-gadai-branch" placeholder="UPC Perumnas Klender">' +
+            '</div>' +
+          '</div>' +
+
+          // Gadai financial terms
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Tanggal Kredit Awal <span class="required">*</span></label>' +
+              '<input class="form-input" type="date" id="df-gadai-issue-date" value="'+Utils.today()+'">' +
+              '<small class="form-hint">Backdate ke tanggal kredit pertama kali</small>' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Jatuh Tempo Saat Ini <span class="required">*</span></label>' +
+              '<input class="form-input" type="date" id="df-gadai-due-date">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Tenor (hari)</label>' +
+              '<input class="form-input" type="number" id="df-gadai-tenor-days" value="120" placeholder="120">' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="form-row">' +
+            '<div class="form-group">' +
+              '<label>Sewa Modal Saat Ini (Rp / 15 hari) <span class="required">*</span></label>' +
+              '<input class="form-input" type="number" id="df-gadai-sewa-modal" placeholder="30000">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Biaya Admin (per perpanjangan)</label>' +
+              '<input class="form-input" type="number" id="df-gadai-biaya-admin" placeholder="2000">' +
+            '</div>' +
+            '<div class="form-group">' +
+              '<label>Minimal Cicil Saat Ini</label>' +
+              '<input class="form-input" type="number" id="df-gadai-minimal-cicil" placeholder="490000">' +
+            '</div>' +
+          '</div>' +
+
+          // Tabungan Emas rekening (shown only for Tabungan Emas)
+          '<div class="form-group" id="df-gadai-norek-group">' +
+            '<label>No. Rekening Tabungan Emas</label>' +
+            '<input class="form-input" type="text" id="df-gadai-norek" placeholder="1235 3196 2000 0314">' +
+          '</div>' +
+
+          // Collateral items
+          '<div class="form-section-title" style="margin-top:1rem">Item Jaminan</div>' +
+          '<div id="df-gadai-collateral-items">' +
+            '<div class="collateral-item-row" style="display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:.5rem;margin-bottom:.5rem">' +
+              '<input class="form-input" type="text" placeholder="Jenis (Perhiasan/Emas Batangan)" data-col="type">' +
+              '<input class="form-input" type="number" placeholder="Gram" step="0.01" data-col="gram">' +
+              '<input class="form-input" type="text" placeholder="Deskripsi (merk, seri, dll)" data-col="desc">' +
+              '<button type="button" class="btn btn-ghost btn-sm text-red" onclick="this.closest(\'.collateral-item-row\').remove(); DebtModule.updateCollateralTotal()">✕</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:1rem;margin-top:.5rem">' +
+            '<button type="button" class="btn btn-ghost btn-sm" onclick="DebtModule.addCollateralItem()">+ Tambah Item Jaminan</button>' +
+            '<span class="text-sm text-muted">Total: <strong id="df-gadai-total-gram">0</strong> gram</span>' +
+          '</div>' +
+
+        '</div>' +
+
         '<div id="df-errors" class="error-box" style="display:none"></div>' +
 
         '<div class="form-actions-bar">' +
           '<button class="btn btn-ghost" onclick="DebtModule.render()">Batal</button>' +
-          '<button class="btn btn-secondary" onclick="DebtModule.previewSchedule()">&#128065; Preview Jadwal</button>' +
-          '<button class="btn btn-primary" onclick="DebtModule.saveNew()">&#10003; Simpan & Generate Jadwal</button>' +
+          '<span id="df-non-gadai-actions">' +
+            '<button class="btn btn-secondary" onclick="DebtModule.previewSchedule()">&#128065; Preview Jadwal</button>' +
+            '<button class="btn btn-primary" onclick="DebtModule.saveNew()">&#10003; Simpan & Generate Jadwal</button>' +
+          '</span>' +
+          '<span id="df-gadai-actions" style="display:none">' +
+            '<button class="btn btn-primary" onclick="DebtModule.saveGadai()">&#10003; Simpan Gadai</button>' +
+          '</span>' +
         '</div>' +
 
       '</div>' + // form-card
@@ -11062,33 +11146,186 @@ const DebtModule = (() => {
     }
   }
 
-    function onFacilityTypeChange() {
+  function onFacilityTypeChange() {
     var type = (document.getElementById('df-facility-type') || {}).value || 'installment';
+    var isGadai = type === 'gadai';
 
     // Show/hide parent facility selector
-    var parentGroup = document.getElementById('df-parent-group');
+    var parentGroup    = document.getElementById('df-parent-group');
+    var drawFields     = document.getElementById('df-draw-fields');
+    var sectionJadwal  = document.getElementById('df-jadwal-section');
+    var availGroup     = document.getElementById('df-available-group');
+    var limitGroup     = document.getElementById('df-limit-group');
+    var gadaiSection   = document.getElementById('df-gadai-section');
+    var nonGadaiActions= document.getElementById('df-non-gadai-actions');
+    var gadaiActions   = document.getElementById('df-gadai-actions');
+    var sectionFinancial = document.getElementById('df-draw-fields') ? document.getElementById('df-draw-fields').closest('.form-section') : null;
+
     if (parentGroup) parentGroup.style.display = type === 'revolving_draw' ? '' : 'none';
 
-    // For revolving_parent: show credit limit + available, hide draw fields
-    var drawFields = document.getElementById('df-draw-fields');
-    var sectionJadwal = document.getElementById('df-jadwal-section');
-    var availGroup = document.getElementById('df-available-group');
-    var limitGroup = document.getElementById('df-limit-group');
-
-    if (type === 'revolving_parent') {
-      if (drawFields)    drawFields.style.display    = 'none';
-      if (sectionJadwal) sectionJadwal.style.display = 'none';
-      if (availGroup)    availGroup.style.display    = '';
-      if (limitGroup)    limitGroup.style.display    = '';
+    if (isGadai) {
+      // Show Gadai section, hide installment-specific sections
+      if (gadaiSection)    gadaiSection.style.display    = '';
+      if (drawFields)      drawFields.style.display      = 'none';
+      if (sectionJadwal)   sectionJadwal.style.display   = 'none';
+      if (availGroup)      availGroup.style.display      = 'none';
+      if (limitGroup)      limitGroup.style.display      = 'none';
+      if (nonGadaiActions) nonGadaiActions.style.display = 'none';
+      if (gadaiActions)    gadaiActions.style.display    = '';
+      // Hide section 3 (financial terms) for gadai — use gadai fields instead
+      var sec3 = document.getElementById('df-draw-fields');
+      if (sec3) { var parentSec = sec3.closest('.form-section'); if (parentSec) parentSec.style.display = 'none'; }
     } else {
-      if (drawFields)    drawFields.style.display    = '';
-      if (sectionJadwal) sectionJadwal.style.display = '';
-      if (availGroup)    availGroup.style.display    = 'none';
-      if (limitGroup)    limitGroup.style.display    = type === 'revolving_draw' ? 'none' : 'none';
+      // Show normal installment/revolving sections
+      if (gadaiSection)    gadaiSection.style.display    = 'none';
+      if (nonGadaiActions) nonGadaiActions.style.display = '';
+      if (gadaiActions)    gadaiActions.style.display    = 'none';
+
+      if (type === 'revolving_parent') {
+        if (drawFields)    drawFields.style.display    = 'none';
+        if (sectionJadwal) sectionJadwal.style.display = 'none';
+        if (availGroup)    availGroup.style.display    = '';
+        if (limitGroup)    limitGroup.style.display    = '';
+      } else {
+        if (drawFields)    drawFields.style.display    = '';
+        if (sectionJadwal) sectionJadwal.style.display = '';
+        if (availGroup)    availGroup.style.display    = 'none';
+        if (limitGroup)    limitGroup.style.display    = 'none';
+      }
     }
   }
 
-function onAmountChange() {
+  function onGadaiCollateralTypeChange() {
+    var type = (document.getElementById('df-gadai-collateral-type') || {}).value;
+    var norekGroup = document.getElementById('df-gadai-norek-group');
+    if (norekGroup) norekGroup.style.display = type === 'Tabungan Emas' ? '' : 'none';
+  }
+
+  function addCollateralItem() {
+    var container = document.getElementById('df-gadai-collateral-items');
+    if (!container) return;
+    var row = document.createElement('div');
+    row.className = 'collateral-item-row';
+    row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:.5rem;margin-bottom:.5rem';
+    row.innerHTML =
+      '<input class="form-input" type="text" placeholder="Jenis (Perhiasan/Emas Batangan)" data-col="type">' +
+      '<input class="form-input" type="number" placeholder="Gram" step="0.01" data-col="gram" oninput="DebtModule.updateCollateralTotal()">' +
+      '<input class="form-input" type="text" placeholder="Deskripsi (merk, seri, dll)" data-col="desc">' +
+      '<button type="button" class="btn btn-ghost btn-sm text-red" onclick="this.closest(\'.collateral-item-row\').remove(); DebtModule.updateCollateralTotal()">✕</button>';
+    container.appendChild(row);
+  }
+
+  function updateCollateralTotal() {
+    var rows = document.querySelectorAll('.collateral-item-row');
+    var total = 0;
+    rows.forEach(function(row) {
+      var gramEl = row.querySelector('[data-col="gram"]');
+      if (gramEl) total += parseFloat(gramEl.value) || 0;
+    });
+    var el = document.getElementById('df-gadai-total-gram');
+    if (el) el.textContent = total.toFixed(2);
+  }
+
+  function saveGadai() {
+    // Collect form values
+    var entity        = (document.getElementById('df-entity')                  || {}).value || '';
+    var bu            = (document.getElementById('df-bu')                      || {}).value || '';
+    var collType      = (document.getElementById('df-gadai-collateral-type')   || {}).value || 'Emas Fisik';
+    var accountNo     = (document.getElementById('df-gadai-account-no')        || {}).value || '';
+    var branch        = (document.getElementById('df-gadai-branch')            || {}).value || '';
+    var issueDate     = (document.getElementById('df-gadai-issue-date')        || {}).value || '';
+    var dueDate       = (document.getElementById('df-gadai-due-date')          || {}).value || '';
+    var tenorDays     = parseInt((document.getElementById('df-gadai-tenor-days')     || {}).value) || 120;
+    var principal     = parseFloat((document.getElementById('df-original')           || {}).value) || 0;
+    var sewaModal     = parseFloat((document.getElementById('df-gadai-sewa-modal')   || {}).value) || 0;
+    var biayaAdmin    = parseFloat((document.getElementById('df-gadai-biaya-admin')  || {}).value) || 0;
+    var minCicil      = parseFloat((document.getElementById('df-gadai-minimal-cicil')|| {}).value) || 0;
+    var norek         = (document.getElementById('df-gadai-norek')             || {}).value || '';
+    var description   = (document.getElementById('df-description')             || {}).value || '';
+    var cp            = (document.getElementById('df-cp')                      || {}).value || '';
+    var acct          = (document.getElementById('df-account')                 || {}).value || '';
+
+    // Collect collateral items
+    var collateralItems = [];
+    document.querySelectorAll('.collateral-item-row').forEach(function(row) {
+      var typeEl = row.querySelector('[data-col="type"]');
+      var gramEl = row.querySelector('[data-col="gram"]');
+      var descEl = row.querySelector('[data-col="desc"]');
+      if (typeEl && typeEl.value) {
+        collateralItems.push({
+          type: typeEl.value,
+          gram: parseFloat(gramEl ? gramEl.value : 0) || 0,
+          desc: descEl ? descEl.value : ''
+        });
+      }
+    });
+    var totalGram = collateralItems.reduce(function(s, i){ return s + i.gram; }, 0);
+
+    // Validation
+    var errors = [];
+    if (!entity)    errors.push('Entity wajib dipilih');
+    if (!bu)        errors.push('Business Unit wajib dipilih');
+    if (!principal || principal <= 0) errors.push('Jumlah pinjaman wajib diisi');
+    if (!issueDate) errors.push('Tanggal kredit awal wajib diisi');
+    if (!dueDate)   errors.push('Jatuh tempo wajib diisi');
+    if (!sewaModal) errors.push('Sewa modal wajib diisi');
+
+    var errBox = document.getElementById('df-errors');
+    if (errors.length > 0) {
+      errBox.style.display = 'block';
+      errBox.innerHTML = '<ul>' + errors.map(function(e){ return '<li>' + e + '</li>'; }).join('') + '</ul>';
+      return;
+    }
+    errBox.style.display = 'none';
+
+    // Build Gadai record
+    var debtId = Utils.newDebtId ? Utils.newDebtId() : ('GADAI-' + Date.now());
+    var gadai = {
+      debt_id:              debtId,
+      facility_type:        'gadai',
+      debt_type:            'Gadai',
+      debt_category:        'Gadai',
+      entity_id:            entity,
+      bu_id:                bu,
+      cp_id:                cp || null,
+      account_id:           acct || null,
+      description:          description || ('Gadai ' + collType + (branch ? ' ' + branch : '')),
+      original_amount:      principal,
+      outstanding_principal: principal,
+      issue_date:           issueDate,
+      start_date:           issueDate,
+      due_date:             dueDate,
+      next_due_date:        dueDate,
+      tenor_days:           tenorDays,
+      sewa_modal_current:   sewaModal,
+      sewa_modal_period_days: 15,
+      biaya_admin:          biayaAdmin,
+      minimal_cicil:        minCicil,
+      collateral_type:      collType,
+      collateral_items:     collateralItems,
+      collateral_total_gram: totalGram,
+      collateral_norek:     norek || null,
+      branch:               branch || null,
+      account_number:       accountNo || null,
+      status:               'Active',
+      gadai_events:         [], // history perpanjangan/tebus
+      created_at:           Utils.today()
+    };
+
+    DB.DebtRegister.save(gadai);
+
+    // Push to Supabase immediately
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
+      SupabaseSync.pushNow('fos_debt_register').then(function() {
+        console.log('[Gadai] Pushed to Supabase:', debtId);
+      });
+    }
+
+    Utils.toast('Gadai berhasil disimpan — ' + collType + ' ' + totalGram.toFixed(2) + ' gr');
+    render();
+  }
+
+  function onAmountChange() {
     var orig     = parseFloat((document.getElementById('df-original')  || {}).value) || 0;
     var monthly  = parseFloat((document.getElementById('df-monthly')   || {}).value) || 0;
     var tenor    = parseInt((document.getElementById('df-tenor')       || {}).value) || 0;
@@ -12628,7 +12865,8 @@ function onAmountChange() {
     showBulkMarkPaid, _bulkCheckAll, _executeBulkMark,
     showEditFacility, _saveEditFacility,
     _editPayment, _deletePayment,
-    onFacilityTypeChange
+    onFacilityTypeChange,
+    onGadaiCollateralTypeChange, addCollateralItem, updateCollateralTotal, saveGadai
   };
 
 })();
