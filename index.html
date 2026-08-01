@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.33 Fix sync cycle pull-first + Gadai direct push build:20260801000000 -->
+<!-- Finance OS v5.14.34 Fix sync race condition + _autoPull pull-only build:20260801010000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4749,14 +4749,7 @@ const SupabaseSync = (() => {
     if (!_online || _syncing) return;
     try {
       _showSyncStatus('syncing');
-      // Push pending local changes FIRST before pulling
-      // Prevents race condition where pull overwrites unsaved local edits
-      if (_pendingPush) {
-        for (var lsKey in TABLE_MAP) {
-          try { await pushAll(lsKey); } catch(e) { /* continue */ }
-        }
-        _pendingPush = false;
-      }
+      // Pull only — no push before pull (prevents overwriting fresh server data)
       await pullFromSupabase();
       _lastPullTime = Date.now();
       _showSyncStatus('synced');
@@ -18499,7 +18492,7 @@ window.addEventListener("DOMContentLoaded", function() {
           console.log('[Sprint 2] cf_class backfill:', updated, 'transactions updated');
         }
       } catch(e) { console.warn('[Sprint 2] cf_class backfill failed:', e.message); }
-    }, 800);
+    }, 5000); // Delay until after Supabase init + pull completes
 
     // Supabase auto-sync — init immediately after app ready
     if (typeof SupabaseSync !== 'undefined') {
