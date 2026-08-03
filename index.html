@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.36 Remove debt_register from auto-sync TABLE_MAP build:20260803010000 -->
+<!-- Finance OS v5.14.37 Fix recalcOutstanding skip Gadai build:20260803020000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3482,6 +3482,8 @@ const DB = (() => {
     recalcOutstanding: function(debt_id) {
       var debt = DebtRegister.byId(debt_id);
       if (!debt) return;
+      // Skip recalc for Gadai — outstanding tracked via gadai_events, not fos_debt_payments
+      if (debt.facility_type === 'gadai') return;
       var pmts = _get(KEYS.debt_payments).filter(function(p){ return p.debt_id === debt_id; });
       var totalPrincipalPaid = pmts.reduce(function(s, p){ return s + (p.allocated_principal || 0); }, 0);
       debt.outstanding_principal = debt.original_amount - totalPrincipalPaid;
