@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.35 Fix pushAll timestamp conflict detection build:20260803000000 -->
+<!-- Finance OS v5.14.36 Remove debt_register from auto-sync TABLE_MAP build:20260803010000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -2871,7 +2871,7 @@ const DB = (() => {
     localStorage.setItem(key, JSON.stringify(data));
     // Sync to Supabase if available - only for transaction/financial data, not master
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.queueSync) {
-      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_receivable_schedules','fos_payables','fos_payments','fos_treasury','fos_debt_register','fos_debt_schedule','fos_debt_payments','fos_debt_obligations','fos_event_catalog','fos_event_rules','fos_coa_balances'];
+      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_receivable_schedules','fos_payables','fos_payments','fos_treasury','fos_debt_schedule','fos_debt_payments','fos_debt_obligations','fos_event_catalog','fos_event_rules','fos_coa_balances'];
       if (syncKeys.includes(key)) {
         // Queue the whole array - handled by pushAll inside sync queue processor
         SupabaseSync.queueBulkSync(key);
@@ -4637,11 +4637,14 @@ const SupabaseSync = (() => {
     'fos_payables':       { table: 'fos_payables',       idKey: 'pay_id' },
     'fos_payments':       { table: 'fos_payments',       idKey: 'pmt_id' },
     'fos_treasury':       { table: 'fos_treasury',       idKey: 'try_id' },
-    // ── Debt Management ────────────────────────────────────
-    'fos_debt_register':  { table: 'fos_debt_register',  idKey: 'debt_id' },
+    // ── Debt Management (schedule + payments only — register pushed explicitly) ──
     'fos_debt_schedule':  { table: 'fos_debt_schedule',  idKey: 'schedule_id' },
     'fos_debt_payments':  { table: 'fos_debt_payments',  idKey: 'dpmt_id' },
   };
+
+  // Debt register pulled separately but NOT pushed via auto-sync
+  // Explicit pushNow('fos_debt_register') used after each save/update
+  const DEBT_REGISTER_MAP = { table: 'fos_debt_register', idKey: 'debt_id' };
 
   // Master data keys stored as single JSON blob in fos_settings
   const SETTINGS_KEYS = [
@@ -4833,25 +4836,20 @@ const SupabaseSync = (() => {
 
   // ── Pull all data from Supabase → localStorage ──────────────
   async function pullFromSupabase() {
-    // Pull all transaction + debt tables via TABLE_MAP
-    var DEBT_KEYS = ['fos_debt_register', 'fos_debt_schedule', 'fos_debt_obligations'];
+    // Pull all transaction tables via TABLE_MAP
+    var DEBT_KEYS = ['fos_debt_schedule', 'fos_debt_obligations'];
     for (var lsKey in TABLE_MAP) {
       var map  = TABLE_MAP[lsKey];
       try {
         var rows = await _api('GET', map.table + '?select=data,updated_at&order=updated_at.asc', null);
         if (rows && rows.length > 0) {
-          // Filter out soft-deleted records (_deleted: true)
-          // Store updated_at in each record as _updated_at for conflict detection
           var records = rows.map(function(r) { 
             var d = r.data; 
-            d._updated_at = r.updated_at; // store server timestamp
+            d._updated_at = r.updated_at;
             return d;
           }).filter(function(r) { return !r._deleted; });
-          // Always replace localStorage with Supabase data
           localStorage.setItem(lsKey, JSON.stringify(records));
         } else if (rows && rows.length === 0) {
-          // Supabase is empty - only clear if not a debt table
-          // Debt tables keep local data when Supabase is empty (first-time push not yet done)
           if (DEBT_KEYS.indexOf(lsKey) < 0) {
             localStorage.setItem(lsKey, JSON.stringify([]));
           }
@@ -4859,6 +4857,21 @@ const SupabaseSync = (() => {
       } catch(e) {
         console.warn('[SupabaseSync] Pull failed for', lsKey, ':', e.message);
       }
+    }
+
+    // Pull fos_debt_register separately (not in TABLE_MAP to prevent auto-push overwrite)
+    try {
+      var debtRows = await _api('GET', 'fos_debt_register?select=data,updated_at&order=updated_at.asc', null);
+      if (debtRows && debtRows.length > 0) {
+        var debtRecords = debtRows.map(function(r) {
+          var d = r.data;
+          d._updated_at = r.updated_at;
+          return d;
+        }).filter(function(r) { return !r._deleted; });
+        localStorage.setItem('fos_debt_register', JSON.stringify(debtRecords));
+      }
+    } catch(e) {
+      console.warn('[SupabaseSync] Pull failed for fos_debt_register:', e.message);
     }
 
     // Pull settings & master data
@@ -5055,7 +5068,21 @@ const SupabaseSync = (() => {
   }
 
   async function pushNow(lsKey) {
-    await pushAll(lsKey);
+    if (lsKey === 'fos_debt_register') {
+      // Push debt register explicitly (not in TABLE_MAP)
+      var raw = localStorage.getItem('fos_debt_register');
+      if (!raw) return;
+      var records = JSON.parse(raw);
+      if (!Array.isArray(records) || records.length === 0) return;
+      var rows = records.map(function(r) {
+        return { debt_id: r.debt_id, data: r, updated_at: new Date().toISOString() };
+      });
+      for (var i = 0; i < rows.length; i += 100) {
+        await _api('POST', 'fos_debt_register?on_conflict=debt_id', rows.slice(i, i + 100));
+      }
+    } else {
+      await pushAll(lsKey);
+    }
     _pendingPush = false;
   }
 
