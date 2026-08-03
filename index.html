@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.34 Fix sync race condition + _autoPull pull-only build:20260801010000 -->
+<!-- Finance OS v5.14.35 Fix pushAll timestamp conflict detection build:20260803000000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4804,7 +4804,9 @@ const SupabaseSync = (() => {
 
     var idKey = map.idKey;
     var rows  = records.map(function(r) {
-      return { [idKey]: r[idKey], data: r, updated_at: new Date().toISOString() };
+      // Use record's own updated_at if available, otherwise use current time
+      // This prevents overwriting newer Supabase data with older localStorage data
+      return { [idKey]: r[idKey], data: r, updated_at: r._updated_at || new Date().toISOString() };
     });
 
     // Batch upsert in chunks of 100
@@ -4839,10 +4841,13 @@ const SupabaseSync = (() => {
         var rows = await _api('GET', map.table + '?select=data,updated_at&order=updated_at.asc', null);
         if (rows && rows.length > 0) {
           // Filter out soft-deleted records (_deleted: true)
-          var records = rows.map(function(r) { return r.data; })
-                           .filter(function(r) { return !r._deleted; });
+          // Store updated_at in each record as _updated_at for conflict detection
+          var records = rows.map(function(r) { 
+            var d = r.data; 
+            d._updated_at = r.updated_at; // store server timestamp
+            return d;
+          }).filter(function(r) { return !r._deleted; });
           // Always replace localStorage with Supabase data
-          // This ensures deleted records on Supabase are also removed locally
           localStorage.setItem(lsKey, JSON.stringify(records));
         } else if (rows && rows.length === 0) {
           // Supabase is empty - only clear if not a debt table
@@ -12209,7 +12214,8 @@ const DebtModule = (() => {
     var minCicilFinal = minCicilBaru > 0 ? minCicilBaru : (debt.minimal_cicil||0);
     var events = debt.gadai_events || [];
     events.push({ event_date:date, event_type:'Perpanjang', cicilan_pokok:cicilan, sewa_modal_paid:sewa, biaya_admin:admin, biaya_asuransi:asuransi, total_paid:totalPaid, principal_before:pokokLama, principal_after:pokokBaru, due_date_new:dueBaru, sewa_modal_new:sewaBaru||Math.round(pokokBaru*(debt.sewa_modal_rate||0)/100), minimal_cicil_new:minCicilFinal, account_id:account });
-    DB.DebtRegister.save(Object.assign({},debt,{ outstanding_principal:pokokBaru, next_due_date:dueBaru, due_date:dueBaru, sewa_modal_rate:rateBaru, minimal_cicil:minCicilFinal, gadai_events:events }));
+    var now = new Date().toISOString();
+    DB.DebtRegister.save(Object.assign({},debt,{ outstanding_principal:pokokBaru, next_due_date:dueBaru, due_date:dueBaru, sewa_modal_rate:rateBaru, minimal_cicil:minCicilFinal, gadai_events:events, _updated_at:now }));
     var acct = DB.Accounts.byId(account);
     var acctCOA = acct ? (acct.coa_code||'101') : '101';
     DB.Transactions.save({ txn_id:Utils.newTxnId(date),txn_date:date,entry_date:Utils.today(),entity_id:debt.entity_id,bu_id:debt.bu_id,activity_id:null,account_id:account,coa_code:acctCOA,type_id:'TXN-08',cp_id:debt.cp_id,amount:totalPaid,direction:'Credit',description:'Perpanjangan Gadai — '+debt.description+' | Ref: '+debtId,reference_id:debtId,status:'Posted',void_reason:null,created_by:'User',period:Utils.toPeriod(date) });
