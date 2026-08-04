@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.39 Add fos_accounts to TABLE_MAP + sync build:20260803040000 -->
+<!-- Finance OS v5.14.41 Fix savePayment next_due_date update build:20260803060000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -12037,6 +12037,10 @@ const DebtModule = (() => {
     if (btnPerpanjang) btnPerpanjang.onclick = function() { _showGadaiPerpanjangan(_selectedDebtId); };
     if (btnTebus)      btnTebus.onclick      = function() { _showGadaiTebus(_selectedDebtId); };
 
+    // Bind non-Gadai payment button
+    var btnCatatBayar = document.getElementById('btn-catat-bayar');
+    if (btnCatatBayar) btnCatatBayar.onclick = function() { showPayment(_selectedDebtId); };
+
     // Bind Gadai tabs
     document.querySelectorAll('.debt-tab').forEach(function(btn) {
       btn.onclick = function() { _switchTab(btn.getAttribute('data-tab')); };
@@ -12708,21 +12712,30 @@ const DebtModule = (() => {
       outBefore = Math.max(0, outBefore - sched.total_installment);
     });
 
-    // Update debt register
+    // Update debt register — including next_due_date
     var remaining = DB.DebtSchedule.byDebt(debt.debt_id).filter(function(s){return s.status!=='Paid';});
     var newOutstanding = debt.billing_method === 'Bundled_Unknown'
       ? remaining.length * (debt.monthly_installment||0)
       : remaining.reduce(function(s,x){return s+(x.principal||0);},0);
 
+    // Calculate next due date from first unpaid schedule
+    var nextDue = debt.next_due_date;
+    if (remaining.length > 0) {
+      var nextSched = remaining.sort(function(a,b){ return a.installment_no - b.installment_no; })[0];
+      nextDue = nextSched.due_date || debt.next_due_date;
+    }
+
     DB.DebtRegister.save(Object.assign({}, debt, {
       remaining_installments: remaining.length,
       outstanding_principal:  newOutstanding,
+      next_due_date:          nextDue,
       status: remaining.length === 0 ? 'Settled' : debt.status
     }));
 
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.pushNow) {
       SupabaseSync.pushNow('fos_debt_schedule');
       SupabaseSync.pushNow('fos_debt_register');
+      SupabaseSync.pushNow('fos_debt_payments');
     }
 
     Utils.toast(schedIds.length + ' cicilan berhasil dicatat — 1 transaksi dibuat');
