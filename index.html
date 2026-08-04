@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.37 Fix recalcOutstanding skip Gadai build:20260803020000 -->
+<!-- Finance OS v5.14.39 Add fos_accounts to TABLE_MAP + sync build:20260803040000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -2871,7 +2871,7 @@ const DB = (() => {
     localStorage.setItem(key, JSON.stringify(data));
     // Sync to Supabase if available - only for transaction/financial data, not master
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.queueSync) {
-      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_receivable_schedules','fos_payables','fos_payments','fos_treasury','fos_debt_schedule','fos_debt_payments','fos_debt_obligations','fos_event_catalog','fos_event_rules','fos_coa_balances'];
+      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_receivable_schedules','fos_payables','fos_payments','fos_treasury','fos_accounts','fos_debt_schedule','fos_debt_payments','fos_debt_obligations','fos_event_catalog','fos_event_rules','fos_coa_balances'];
       if (syncKeys.includes(key)) {
         // Queue the whole array - handled by pushAll inside sync queue processor
         SupabaseSync.queueBulkSync(key);
@@ -4639,6 +4639,7 @@ const SupabaseSync = (() => {
     'fos_payables':       { table: 'fos_payables',       idKey: 'pay_id' },
     'fos_payments':       { table: 'fos_payments',       idKey: 'pmt_id' },
     'fos_treasury':       { table: 'fos_treasury',       idKey: 'try_id' },
+    'fos_accounts':       { table: 'fos_accounts',       idKey: 'account_id' },
     // ── Debt Management (schedule + payments only — register pushed explicitly) ──
     'fos_debt_schedule':  { table: 'fos_debt_schedule',  idKey: 'schedule_id' },
     'fos_debt_payments':  { table: 'fos_debt_payments',  idKey: 'dpmt_id' },
@@ -12239,7 +12240,12 @@ const DebtModule = (() => {
     var totalPaid  = cicilan + sewa + admin + asuransi;
     var pokokLama  = debt.outstanding_principal || debt.original_amount || 0;
     var pokokBaru  = pokokLama - cicilan;
-    var rateBaru   = sewaBaru > 0 ? (sewaBaru / pokokBaru * 100) : (debt.sewa_modal_rate||0);
+    var rateBaru = debt.sewa_modal_rate || 0; // default: keep same rate
+    if (sewaBaru > 0 && pokokBaru > 0) {
+      // Only update rate if user explicitly input new sewa modal
+      // Round to 4 decimal places to avoid floating point issues
+      rateBaru = Math.round(sewaBaru / pokokBaru * 1000000) / 10000;
+    }
     var minCicilFinal = minCicilBaru > 0 ? minCicilBaru : (debt.minimal_cicil||0);
     var events = debt.gadai_events || [];
     events.push({ event_date:date, event_type:'Perpanjang', cicilan_pokok:cicilan, sewa_modal_paid:sewa, biaya_admin:admin, biaya_asuransi:asuransi, total_paid:totalPaid, principal_before:pokokLama, principal_after:pokokBaru, due_date_new:dueBaru, sewa_modal_new:sewaBaru||Math.round(pokokBaru*(debt.sewa_modal_rate||0)/100), minimal_cicil_new:minCicilFinal, account_id:account });
