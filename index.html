@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.44 Gadai nomor kredit di list view + edit perpanjangan build:20260803090000 -->
+<!-- Finance OS v5.14.45 Gadai ID format YYYYMMDD + edit nomor kredit build:20260803100000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -11362,8 +11362,12 @@ const DebtModule = (() => {
     }
     errBox.style.display = 'none';
 
-    // Build Gadai record
-    var debtId = Utils.newDebtId ? Utils.newDebtId() : ('GADAI-' + Date.now());
+    // Generate consistent ID: GADAI-YYYYMMDD-XXX
+    var dateStr = issueDate.replace(/-/g, '').substring(0, 8);
+    var existing = JSON.parse(localStorage.getItem('fos_debt_register')||'[]');
+    var sameDate = existing.filter(function(d){ return d.debt_id && d.debt_id.startsWith('GADAI-' + dateStr); });
+    var seq = String(sameDate.length + 1).padStart(3, '0');
+    var debtId = 'GADAI-' + dateStr + '-' + seq;
     var gadai = {
       debt_id:              debtId,
       facility_type:        'gadai',
