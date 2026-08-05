@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.49 Fix Piutang payment validation include interest build:20260805000000 -->
+<!-- Finance OS v5.14.50 Fix Piutang outstanding uses principal_paid not total build:20260805010000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3161,13 +3161,17 @@ const DB = (() => {
     const list = _get(KEYS.receivables);
     const idx = list.findIndex(r => r.rcv_id === rcv_id);
     if (idx < 0) return;
-    const cols = _get(KEYS.collections).filter(c => c.rcv_id === rcv_id);
-    const collected = cols.reduce((s, c) => s + c.amount, 0);
-    list[idx].collected_amount = collected;
-    list[idx].outstanding_balance = list[idx].original_amount - collected;
+    const cols = _get(KEYS.collections).filter(c => c.rcv_id === rcv_id && !c._deleted);
+    // Use principal_paid for outstanding calculation (not total amount which includes interest)
+    const principalPaid = cols.reduce((s, c) => s + (c.principal_paid != null ? c.principal_paid : c.amount), 0);
+    const totalCollected = cols.reduce((s, c) => s + c.amount, 0);
+    list[idx].collected_amount  = principalPaid;
+    list[idx].outstanding_balance = list[idx].original_amount - principalPaid;
+    list[idx].total_principal_paid = principalPaid;
+    list[idx].total_interest_paid = cols.reduce((s, c) => s + (c.interest_paid || 0), 0);
     const today = new Date().toISOString().split("T")[0];
-    if (collected >= list[idx].original_amount) list[idx].status = "Closed";
-    else if (collected > 0) list[idx].status = list[idx].due_date < today ? "Overdue" : "Partial";
+    if (principalPaid >= list[idx].original_amount) list[idx].status = "Closed";
+    else if (principalPaid > 0) list[idx].status = list[idx].due_date < today ? "Overdue" : "Partial";
     else list[idx].status = list[idx].due_date < today ? "Overdue" : "Open";
     _set(KEYS.receivables, list);
   }
