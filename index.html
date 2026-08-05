@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.45 Gadai ID format YYYYMMDD + edit nomor kredit build:20260803100000 -->
+<!-- Finance OS v5.14.49 Fix Piutang payment validation include interest build:20260805000000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -7983,7 +7983,12 @@ const Receivables = (() => {
     var errors = [];
     if (!date)                    errors.push('Tanggal wajib diisi');
     if (!amount || amount <= 0)   errors.push('Jumlah harus lebih dari 0');
-    if (amount > r.outstanding_balance) errors.push('Jumlah melebihi saldo outstanding (' + Utils.formatIDR(r.outstanding_balance) + ')');
+    // For loans: outstanding_balance is principal only, but payment includes interest
+    // So max payment = outstanding_balance + remaining interest
+    var maxPayment = isLoan 
+      ? r.outstanding_balance + (r.monthly_interest_income || 0) * (r.tenor_months || 1)
+      : r.outstanding_balance;
+    if (amount > maxPayment) errors.push('Jumlah melebihi saldo outstanding (' + Utils.formatIDR(r.outstanding_balance) + ' pokok + bunga)');
     if (!account)                 errors.push('Akun penerima wajib dipilih');
 
     if (errors.length > 0) {
@@ -10610,7 +10615,12 @@ const DebtModule = (() => {
       ? DB.DebtRegister.byEntity(entity)
       : DB.DebtRegister.all();
 
-    // Apply filters
+    // Sort by issue_date ascending (oldest first)
+    all = all.slice().sort(function(a, b){
+      var da = a.issue_date || a.start_date || '';
+      var db = b.issue_date || b.start_date || '';
+      return da.localeCompare(db);
+    });
     var filtered = all;
     if (_filters.status !== 'ALL') {
       if (_filters.status === 'Active') {
@@ -11551,8 +11561,9 @@ const DebtModule = (() => {
 
   // ── Collect Form Data ─────────────────────────────────────
   function _collectFormData() {
-    var entity    = (document.getElementById('df-entity')       || {}).value || '';
-    var bu        = (document.getElementById('df-bu')           || {}).value || '';
+    var entity    = (document.getElementById('df-entity')        || {}).value || '';
+    var facilityType = (document.getElementById('df-facility-type') || {}).value || 'installment';
+    var bu        = (document.getElementById('df-bu')            || {}).value || '';
     var activity  = (document.getElementById('df-activity')     || {}).value || '';
     var category  = (document.getElementById('df-category')     || {}).value || '';
     var type      = (document.getElementById('df-type')         || {}).value || '';
@@ -11697,7 +11708,21 @@ const DebtModule = (() => {
       });
     }
 
-    Utils.toast('Fasilitas berhasil disimpan — ' + schedules.length + ' jadwal angsuran di-generate');
+    var schedCount = (typeof schedules !== 'undefined') ? schedules.length : 0;
+    Utils.toast('Fasilitas berhasil disimpan — ' + schedCount + ' jadwal angsuran di-generate');
+
+    // Push debt_register to Supabase explicitly (removed from TABLE_MAP auto-sync)
+    var _sbUrl2 = 'https://ewbzxrgkbcahmwmljlfn.supabase.co';
+    var _sbKey2 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Ynp4cmdrYmNhaG13bWxqbGZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3NTUyODksImV4cCI6MjA5ODMzMTI4OX0.Tn-ajLwGJFU3pdsILPVc1nvqdGZyzF2RdZ0qkguOMm0';
+    var _sbH2 = { 'apikey': _sbKey2, 'Authorization': 'Bearer ' + _sbKey2, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' };
+    fetch(_sbUrl2 + '/rest/v1/fos_debt_register?on_conflict=debt_id', {
+      method: 'POST', headers: _sbH2,
+      body: JSON.stringify([{ debt_id: debt.debt_id, data: debt, updated_at: new Date().toISOString() }])
+    }).then(function(r){ console.log('[saveNew] debt_register pushed:', r.status); });
+
+    SupabaseSync.pushNow('fos_debt_schedule');
+    SupabaseSync.pushNow('fos_transactions');
+
     showDetail(debt.debt_id);
   }
   function _renderDetail() {
