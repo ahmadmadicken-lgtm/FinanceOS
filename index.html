@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.50 Fix Piutang outstanding uses principal_paid not total build:20260805010000 -->
+<!-- Finance OS v5.14.51 Fix savePayment silent failures build:20260807000000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -12762,7 +12762,11 @@ const DebtModule = (() => {
 
   function savePayment() {
     var debt = DB.DebtRegister.byId(_selectedDebtId);
-    if (!debt) return;
+    if (!debt) {
+      console.error('[savePayment] FAILED — debt not found for _selectedDebtId:', _selectedDebtId);
+      Utils.toast('Gagal simpan — fasilitas tidak ditemukan (ID: ' + _selectedDebtId + '). Silakan buka ulang dari halaman Register.', 'error');
+      return;
+    }
 
     // Collect selected cicilan
     var checks = document.querySelectorAll('.pmt-sched-check:checked');
@@ -12856,7 +12860,11 @@ const DebtModule = (() => {
 
     schedIds.forEach(function(schedId, i) {
       var sched = DB.DebtSchedule.byId(schedId);
-      if (!sched) return;
+      if (!sched) {
+        console.error('[savePayment] Schedule not found, skipped:', schedId);
+        Utils.toast('Peringatan: 1 cicilan gagal disimpan (schedule ID tidak ditemukan)', 'error');
+        return;
+      }
 
       // Mark paid
       DB.DebtSchedule.save(Object.assign({}, sched, {
@@ -12912,6 +12920,10 @@ const DebtModule = (() => {
       SupabaseSync.pushNow('fos_debt_register');
       SupabaseSync.pushNow('fos_debt_payments');
     }
+
+    // Verify payments actually persisted
+    var verifyCount = DB.DebtPayments.byDebt(debt.debt_id).length;
+    console.log('[savePayment] Done. Total payments now on record for', debt.debt_id, ':', verifyCount);
 
     Utils.toast(schedIds.length + ' cicilan berhasil dicatat — 1 transaksi dibuat');
     showDetail(_selectedDebtId);
