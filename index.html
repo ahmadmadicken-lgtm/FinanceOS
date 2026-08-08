@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.51 Fix savePayment silent failures build:20260807000000 -->
+<!-- Finance OS v5.14.52 Separate Outstanding Pokok vs Total Sisa Kewajiban build:20260807010000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -3491,7 +3491,10 @@ const DB = (() => {
       var pmts = _get(KEYS.debt_payments).filter(function(p){ return p.debt_id === debt_id; });
       var totalPrincipalPaid = pmts.reduce(function(s, p){ return s + (p.allocated_principal || 0); }, 0);
       debt.outstanding_principal = debt.original_amount - totalPrincipalPaid;
-      // Update available credit for revolving
+      // Total remaining obligation (principal + interest) from unpaid schedule
+      var unpaidScheds = _get(KEYS.debt_schedule).filter(function(s){ return s.debt_id === debt_id && s.status !== 'Paid'; });
+      debt.remaining_obligation = unpaidScheds.reduce(function(s,x){ return s+(x.total_installment||x.principal||0); }, 0);
+      // Update available credit for revolving — based on PRINCIPAL ONLY
       if (debt.credit_limit && debt.credit_limit_type === 'Full_Revolving') {
         debt.available_credit = debt.credit_limit - debt.outstanding_principal;
       } else if (debt.credit_limit && debt.credit_limit_type === 'Principal_Only') {
@@ -11807,17 +11810,16 @@ const DebtModule = (() => {
           : '<div class="debt-detail-kpi">' +
           (function(){
             var unpaid = schedules.filter(function(s){ return s.status !== 'Paid'; });
-            var displayOutstanding;
-            if (debt.billing_method === 'Bundled_Unknown') {
-              // Bundled: outstanding = remaining cicilan × monthly amount
-              // (total_installment already = monthly for Bundled)
-              displayOutstanding = unpaid.length * (debt.monthly_installment || 0);
-            } else {
-              // Non-bundled: sum remaining principal from schedule
-              var calcOut = unpaid.reduce(function(s,x){ return s+(x.principal||0);},0);
-              displayOutstanding = calcOut > 0 ? calcOut : (debt.outstanding_principal||0);
+            // Outstanding Pokok: principal-only (for revolving limit purposes)
+            var remainingPrincipal = unpaid.reduce(function(s,x){ return s+(x.principal||0);},0);
+            // Total Sisa Kewajiban: principal + interest (total cash still owed)
+            var remainingObligation = unpaid.reduce(function(s,x){ return s+(x.total_installment||x.principal||0);},0);
+            if (remainingPrincipal === 0 && remainingObligation === 0) {
+              remainingPrincipal = debt.outstanding_principal || 0;
+              remainingObligation = debt.outstanding_principal || 0;
             }
-            return _detailKPI('Outstanding', Utils.formatIDR(Math.max(0, displayOutstanding)), 'text-red');
+            return _detailKPI('Outstanding Pokok', Utils.formatIDR(Math.max(0, remainingPrincipal)), 'text-red') +
+                   _detailKPI('Total Sisa Kewajiban', Utils.formatIDR(Math.max(0, remainingObligation)), 'text-red');
           })() +
           (debt.credit_limit
             ? _detailKPI('Credit Limit', Utils.formatIDR(debt.credit_limit), '') +
@@ -11960,7 +11962,8 @@ const DebtModule = (() => {
           _infoRow('Tipe', debt.debt_type || '—') +
           _infoRow('Referensi', debt.reference_no || '—') +
           _infoRow('Jumlah Awal', Utils.formatIDR(debt.original_amount||0)) +
-          _infoRow('Outstanding', Utils.formatIDR(debt.outstanding_principal||0)) +
+          _infoRow('Outstanding Pokok', Utils.formatIDR(debt.outstanding_principal||0)) +
+          _infoRow('Total Sisa Kewajiban', Utils.formatIDR(debt.remaining_obligation != null ? debt.remaining_obligation : (debt.outstanding_principal||0))) +
           _infoRow('Credit Limit', debt.credit_limit ? Utils.formatIDR(debt.credit_limit) : '—') +
           _infoRow('Available Credit', debt.available_credit != null ? Utils.formatIDR(debt.available_credit) : '—') +
           _infoRow('Credit Limit Type', debt.credit_limit_type || '—') +
