@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.52 Separate Outstanding Pokok vs Total Sisa Kewajiban build:20260807010000 -->
+<!-- Finance OS v5.14.56 Fix PostgREST 1000-row pull limit with pagination build:20260813000000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -2659,20 +2659,23 @@ const SEED_DATA = {
   ],
 
   business_units: [
-    { bu_id: "BU-JO-01", entity_id: "E01", bu_name: "JO Operational", bu_type: "Business", status: "Active" },
-    { bu_id: "BU-JO-99", entity_id: "E01", bu_name: "JO General", bu_type: "General", status: "Active" },
-    { bu_id: "BU-P-01",  entity_id: "E02", bu_name: "Household", bu_type: "Household", status: "Active" },
-    { bu_id: "BU-P-02",  entity_id: "E02", bu_name: "Kedai Mungil", bu_type: "Business", status: "Active" },
-    { bu_id: "BU-P-03",  entity_id: "E02", bu_name: "Buffoindo", bu_type: "Business", status: "Active" },
-    { bu_id: "BU-P-04",  entity_id: "E02", bu_name: "Friends Loan", bu_type: "Business", status: "Active" },
-    { bu_id: "BU-P-99",  entity_id: "E02", bu_name: "Personal General", bu_type: "General", status: "Active" }
+    { bu_id: "BU-JO-01", entity_id: "E01", bu_name: "JO Operational", bu_type: "Operational", status: "Active" },
+    { bu_id: "BU-JO-02", entity_id: "E01", bu_name: "JO Program", bu_type: "Program", status: "Active" },
+    { bu_id: "BU-P-01",  entity_id: "E02", bu_name: "Household", bu_type: "Expense", status: "Active" },
+    { bu_id: "BU-P-02",  entity_id: "E02", bu_name: "Kedai Mungil", bu_type: "Income", status: "Active" },
+    { bu_id: "BU-P-03",  entity_id: "E02", bu_name: "Buffoindo", bu_type: "Income", status: "Active" },
+    { bu_id: "BU-P-04",  entity_id: "E02", bu_name: "Friends Loan", bu_type: "Receivable", status: "Active" },
+    { bu_id: "BU-P-05",  entity_id: "E02", bu_name: "Other Fee", bu_type: "Income", status: "Active" },
+    { bu_id: "BU-P-06",  entity_id: "E02", bu_name: "Salary", bu_type: "Income", status: "Active" },
+    { bu_id: "BU-P-07",  entity_id: "E02", bu_name: "Billing", bu_type: "Treasury", status: "Active" },
+    { bu_id: "BU-P-99",  entity_id: "E02", bu_name: "Personal General (Legacy — perlu direklasifikasi)", bu_type: "General", status: "Active" }
   ],
 
   activities: [
-    { activity_id: "ACT-JO-01", entity_id: "E01", bu_id: "BU-JO-01", activity_name: "WFA", status: "Active" },
-    { activity_id: "ACT-JO-02", entity_id: "E01", bu_id: "BU-JO-01", activity_name: "SRT", status: "Active" },
+    { activity_id: "ACT-JO-01", entity_id: "E01", bu_id: "BU-JO-02", activity_name: "WFA 2026", status: "Active" },
+    { activity_id: "ACT-JO-02", entity_id: "E01", bu_id: "BU-JO-02", activity_name: "SRT 2026", status: "Active" },
     { activity_id: "ACT-JO-03", entity_id: "E01", bu_id: "BU-JO-01", activity_name: "JO Operational", status: "Active" },
-    { activity_id: "ACT-JO-99", entity_id: "E01", bu_id: "BU-JO-99", activity_name: "Unallocated", status: "Active" },
+    { activity_id: "ACT-JO-99", entity_id: "E01", bu_id: "BU-JO-02", activity_name: "Unallocated Program", status: "Active" },
     { activity_id: "ACT-P-99",  entity_id: "E02", bu_id: "BU-P-99",  activity_name: "Unallocated", status: "Active" }
   ],
 
@@ -2871,7 +2874,7 @@ const DB = (() => {
     localStorage.setItem(key, JSON.stringify(data));
     // Sync to Supabase if available - only for transaction/financial data, not master
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.queueSync) {
-      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_receivable_schedules','fos_payables','fos_payments','fos_treasury','fos_accounts','fos_debt_schedule','fos_debt_payments','fos_debt_obligations','fos_event_catalog','fos_event_rules','fos_coa_balances'];
+      var syncKeys = ['fos_transactions','fos_receivables','fos_collections','fos_receivable_schedules','fos_payables','fos_payments','fos_treasury','fos_accounts','fos_business_units','fos_activities','fos_debt_schedule','fos_debt_payments','fos_debt_obligations','fos_event_catalog','fos_event_rules','fos_coa_balances'];
       if (syncKeys.includes(key)) {
         // Queue the whole array - handled by pushAll inside sync queue processor
         SupabaseSync.queueBulkSync(key);
@@ -2902,6 +2905,20 @@ const DB = (() => {
       _set(KEYS.accounts,          SEED_DATA.accounts);
       _set(KEYS.counterparties,    SEED_DATA.counterparties);
       _set(KEYS.transaction_types, SEED_DATA.transaction_types);
+    }
+    // Self-healing: re-seed individual master tables if they went empty
+    // (e.g. due to a Supabase table not existing yet, causing pull to wipe localStorage)
+    if (_get(KEYS.business_units).length === 0 && SEED_DATA.business_units) {
+      console.warn('[DB] business_units was empty — re-seeding from SEED_DATA');
+      _set(KEYS.business_units, SEED_DATA.business_units);
+    }
+    if (_get(KEYS.activities).length === 0 && SEED_DATA.activities) {
+      console.warn('[DB] activities was empty — re-seeding from SEED_DATA');
+      _set(KEYS.activities, SEED_DATA.activities);
+    }
+    if (_get(KEYS.accounts).length === 0 && SEED_DATA.accounts) {
+      console.warn('[DB] accounts was empty — re-seeding from SEED_DATA');
+      _set(KEYS.accounts, SEED_DATA.accounts);
     }
     // ── Seed Event Catalog (Sprint 1) ─────────────────────────
     if (typeof EVENT_CATALOG_SEED !== 'undefined' && _get(KEYS.event_catalog).length === 0) {
@@ -4647,6 +4664,8 @@ const SupabaseSync = (() => {
     'fos_payments':       { table: 'fos_payments',       idKey: 'pmt_id' },
     'fos_treasury':       { table: 'fos_treasury',       idKey: 'try_id' },
     'fos_accounts':       { table: 'fos_accounts',       idKey: 'account_id' },
+    'fos_business_units': { table: 'fos_business_units', idKey: 'bu_id' },
+    'fos_activities':     { table: 'fos_activities',     idKey: 'activity_id' },
     // ── Debt Management (schedule + payments only — register pushed explicitly) ──
     'fos_debt_schedule':  { table: 'fos_debt_schedule',  idKey: 'schedule_id' },
     'fos_debt_payments':  { table: 'fos_debt_payments',  idKey: 'dpmt_id' },
@@ -4657,9 +4676,11 @@ const SupabaseSync = (() => {
   const DEBT_REGISTER_MAP = { table: 'fos_debt_register', idKey: 'debt_id' };
 
   // Master data keys stored as single JSON blob in fos_settings
+  // NOTE: fos_activities and fos_business_units removed — now properly synced via TABLE_MAP
+  // (previously duplicated here, causing pullSettings to overwrite fresh TABLE_MAP pulls with stale data)
   const SETTINGS_KEYS = [
-    'fos_entities', 'fos_bus', 'fos_activities', 'fos_coa',
-    'fos_accounts', 'fos_counterparties', 'fos_txn_types',
+    'fos_entities', 'fos_coa',
+    'fos_counterparties', 'fos_txn_types',
     'fos_settings', 'fos_seed_loaded'
   ];
 
@@ -4789,6 +4810,28 @@ const SupabaseSync = (() => {
     return text ? JSON.parse(text) : null;
   }
 
+  // ── Paginated GET — fetches ALL rows, bypassing PostgREST's default 1000-row cap ──
+  async function _apiGetAll(tableWithQuery) {
+    var PAGE_SIZE = 1000;
+    var all = [];
+    var offset = 0;
+    while (true) {
+      var sep = tableWithQuery.indexOf('?') >= 0 ? '&' : '?';
+      var url = SUPABASE_URL + '/rest/v1/' + tableWithQuery + sep + 'limit=' + PAGE_SIZE + '&offset=' + offset;
+      var res = await fetch(url, { method: 'GET', headers: HEADERS });
+      if (!res.ok) {
+        var err = await res.text();
+        throw new Error('Supabase GET ' + tableWithQuery + ': ' + err);
+      }
+      var text = await res.text();
+      var page = text ? JSON.parse(text) : [];
+      all = all.concat(page);
+      if (page.length < PAGE_SIZE) break; // last page
+      offset += PAGE_SIZE;
+    }
+    return all;
+  }
+
   // ── Push single record ──────────────────────────────────────
   async function pushRecord(lsKey, record) {
     var map = TABLE_MAP[lsKey];
@@ -4851,7 +4894,7 @@ const SupabaseSync = (() => {
     for (var lsKey in TABLE_MAP) {
       var map  = TABLE_MAP[lsKey];
       try {
-        var rows = await _api('GET', map.table + '?select=data,updated_at&order=updated_at.asc', null);
+        var rows = await _apiGetAll(map.table + '?select=data,updated_at&order=updated_at.asc');
         if (rows && rows.length > 0) {
           var records = rows.map(function(r) { 
             var d = r.data; 
@@ -4871,7 +4914,7 @@ const SupabaseSync = (() => {
 
     // Pull fos_debt_register separately (not in TABLE_MAP to prevent auto-push overwrite)
     try {
-      var debtRows = await _api('GET', 'fos_debt_register?select=data,updated_at&order=updated_at.asc', null);
+      var debtRows = await _apiGetAll('fos_debt_register?select=data,updated_at&order=updated_at.asc');
       if (debtRows && debtRows.length > 0) {
         var debtRecords = debtRows.map(function(r) {
           var d = r.data;
@@ -4884,12 +4927,13 @@ const SupabaseSync = (() => {
       console.warn('[SupabaseSync] Pull failed for fos_debt_register:', e.message);
     }
 
-    // Pull settings & master data
+    // Pull settings & master data (only keys still managed via settings blob —
+    // ignores stale rows like old fos_activities/fos_business_units entries)
     try {
       var settings = await _api('GET', 'fos_settings?select=key,data', null);
       if (settings && settings.length > 0) {
         settings.forEach(function(s) {
-          if (s.data !== null) {
+          if (s.data !== null && SETTINGS_KEYS.indexOf(s.key) >= 0) {
             localStorage.setItem(s.key, JSON.stringify(s.data));
           }
         });
