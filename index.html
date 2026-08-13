@@ -1,4 +1,4 @@
-<!-- Finance OS v5.14.56 Fix PostgREST 1000-row pull limit with pagination build:20260813000000 -->
+<!-- Finance OS v5.14.57 Extend period dropdown to 32 months for historical data build:20260813010000 -->
 <!DOCTYPE html><html lang="id">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <title>Finance OS</title><meta name="theme-color" content="#0d1117"/>
@@ -4617,7 +4617,8 @@ const Utils = (() => {
   function last12Periods() {
     const periods = [];
     const d = new Date();
-    for (let i = 0; i < 12; i++) {
+    // Extended to 32 months to cover historical data imports (back to ~Jan 2024)
+    for (let i = 0; i < 32; i++) {
       periods.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
       d.setMonth(d.getMonth() - 1);
     }
